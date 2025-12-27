@@ -1,0 +1,5 @@
+# Python virtual environment
+.venv
+
+# Ignore the generated site
+site/
