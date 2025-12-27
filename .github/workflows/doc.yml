@@ -1,0 +1,56 @@
+name: Deploy Documentation to Pages
+
+on:
+  # Runs on pushes targeting the default branch
+  push:
+    branches: ["main"]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+  
+env:
+  CARGO_TERM_COLOR: always
+  SCCACHE_GHA_ENABLED: on
+
+jobs:
+  deploy:
+    if: github.repository == 'MERCorg/merc-website'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+      
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v6
+
+      - name: Checkout the repository
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Build website documentation
+        run: |
+          mkdocs build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          # Upload the documentation directory
+          path: 'site'
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
