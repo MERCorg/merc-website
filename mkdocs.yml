@@ -2,3 +2,6 @@ site_name: The MERC project
 site_url: https://mercorg.github.io/merc-website/
 theme:
   name: material
+
+repo_name: Github
+repo_url: https://github.com/MERCorg/merc/
