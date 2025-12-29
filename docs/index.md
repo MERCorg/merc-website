@@ -19,7 +19,3 @@ Various tools have been implemented so far:
 
 Various crates are also published on [crates.io](https://crates.io/users/mlaveaux), see the `crates` directory for an overview.
 
-## Literature
-
-
-

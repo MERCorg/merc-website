@@ -16,6 +16,9 @@ theme:
         name: Switch to dark mode
   language: en
 
+plugins:
+  - privacy # Plugin that downloads all external resources and serves them locally to enhance privacy.
+  - search
 
 repo_name: MERCorg/merc
 repo_url: https://github.com/MERCorg/merc/
