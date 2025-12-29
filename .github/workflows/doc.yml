@@ -48,7 +48,7 @@ jobs:
 
       - name: Build website documentation
         run: |
-          mkdocs build
+          mkdocs build --strict
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4

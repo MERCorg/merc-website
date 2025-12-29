@@ -2,6 +2,34 @@ site_name: The MERC project
 site_url: https://mercorg.github.io/merc-website/
 theme:
   name: material
+  palette:
+    - scheme: slate
+      primary: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
 
-repo_name: Github
+    - scheme: default
+      primary: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  language: en
+
+
+repo_name: MERCorg/merc
 repo_url: https://github.com/MERCorg/merc/
+
+# Definition for the left-hand navigation menu
+nav:
+  - Home: index.md
+  - 'Issue Tracker': https://github.com/MERCorg/merc/issues
+  - 'Reference': https://mercorg.github.io/merc/
+
+# Custom CSS
+extra_css:
+  - stylesheets/extra.css
+
+# Enable markdown extensions
+markdown_extensions:
+  - admonition # The admonition extension allows you to create callout boxes.
