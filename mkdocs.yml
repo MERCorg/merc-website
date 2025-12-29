@@ -48,5 +48,5 @@ extra_css:
 markdown_extensions:
   - admonition # The admonition extension allows you to create callout boxes.
   - pymdownx.highlight: # Use Pygments for syntax highlighting at build time
-      use_pygments: true      
-  - pymdownx.inlinehilite
+      use_pygments: true    
+  - pymdownx.superfences
