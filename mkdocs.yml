@@ -15,6 +15,9 @@ theme:
         icon: material/brightness-7
         name: Switch to dark mode
   language: en
+  features:
+    # When instant loading is enabled, clicks on all internal links will be intercepted and dispatched via XHR without fully reloading the page
+    - navigation.instant
 
 plugins:
   - privacy # Plugin that downloads all external resources and serves them locally to enhance privacy.
@@ -26,8 +29,16 @@ repo_url: https://github.com/MERCorg/merc/
 # Definition for the left-hand navigation menu
 nav:
   - Home: index.md
-  - 'Issue Tracker': https://github.com/MERCorg/merc/issues
-  - 'Reference': https://mercorg.github.io/merc/
+  - Development:
+    - developer/testing.md
+    - developer/term_trait.md
+  - Maintainers:
+    - maintainers/general.md
+    - maintainers/publishing.md
+  - Links:
+    - 'Issue Tracker': https://github.com/MERCorg/merc/issues
+    - 'Documentation': https://mercorg.github.io/merc/
+    - 'Coverage': https://mercorg.github.io/merc/coverage/
 
 # Custom CSS
 extra_css:
@@ -36,3 +47,6 @@ extra_css:
 # Enable markdown extensions
 markdown_extensions:
   - admonition # The admonition extension allows you to create callout boxes.
+  - pymdownx.highlight: # Use Pygments for syntax highlighting at build time
+      use_pygments: true      
+  - pymdownx.inlinehilite
