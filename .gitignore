@@ -1,6 +1,9 @@
 # Python virtual environment
 .venv
 
+# Python cache files
+*.pyc
+
 # Ignore the generated site
 site/
 .cache/
