@@ -3,6 +3,7 @@
 
 # Python cache files
 *.pyc
+*.egg-info
 
 # Ignore the generated site
 site/
