@@ -43,8 +43,12 @@ jobs:
         with:
           python-version: '3.14'
           cache: 'pip'
+
       - name: Install dependencies
         run: pip install -r requirements.txt
+          
+      - name: Install embed_latex
+        run: pip install -e plugins/embed_latex
 
       - name: Build website documentation
         run: |
