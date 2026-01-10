@@ -1,4 +1,4 @@
-# The Term trait
+# The ATerm Library
 
 The `Term` trait, shown below, is the central trait for the ATerm library,
 allowing functions to be defined on generic terms, either owned or borrowed.
@@ -24,8 +24,6 @@ whose lifetime is bound by `'a`.
 Consider the alternative of having a single lifetime `'a` in the `Term<'a>` trait.
 In that case, we would have to implement `Term<'a>` for `ATermRef<'a>` for all lifetimes
 `'a`, including the `'static` lifetime. 
-
-
 
 This is done by requiring that `'b: 'a`,
 so that we can implement `Term<'a, 'b>` for `&'b ATerm` for all lifetimes

@@ -1,4 +1,10 @@
 
+## Versioning scheme
+
+We use [Semantic Versioning](https://semver.org/) for versioning the `MERC`
+project, but for the time being we are not so concerned with breaking changes
+since the project is still in its early stages.
+
 ## Publishing Crates
 
 The Cargo
@@ -14,8 +20,6 @@ ensure that the `Cargo.toml` file is properly filled out with relevant metadata,
 including the crate's name, version, authors, description, license, and
 repository URL. Before publishing a crate, it is essential to run tests and
 ensure that the crate builds successfully.
-
-
 
 Internal crates that are not intended for public use should have the following
 note in the `README.md` file indicating that they should not be relied upon.

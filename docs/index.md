@@ -4,7 +4,7 @@ The goal of the `MERC` project is to provide a generic set of libraries and tool
 
 We aim to demonstrate efficient and correct implementations using (safe) Rust. The main focus is on clean interfaces to allow the libraries to be reused as well. The toolset supports and is tested on all major platforms: Linux, macOS and Windows.
 
-!!! note Announcement
+!!! note "Announcement"
     The first release `v1.0` of `MERC` has been published in December 2025, and is available to download on the Github [releases](https://github.com/MERCorg/merc/releases) page. The corresponding crates have also been published on [crates.io](https://crates.io/users/mlaveaux).
 
 # Overview
@@ -22,3 +22,6 @@ Various crates are also published on [crates.io](https://crates.io/users/mlaveau
 # Links
 
 See the links on the left-hand navigation menu for easy access to the issue tracker, documentation and code coverage reports.
+
+# Literature
+

@@ -6,7 +6,3 @@ distributed anyway. For `release` builds we enable `debug = "line-tables-only"`
 to enable line and function information in backtraces. In the `mcrl2` tools we
 do not split debug info since `cpptrace` cannot seem to find it, and this breaks
 stack traces in the `C++` code.
-
-## Versioning scheme
-
-We use [Semantic Versioning](https://semver.org/) for versioning the `MERC` project, but for the time being we are not so concerned with breaking changes since the project is still in its early stages.
