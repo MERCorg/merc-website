@@ -70,7 +70,7 @@ class EmbedLatexPlugin(BasePlugin):
 """
         tex: str = env % tex_body
 
-        with tempfile.TemporaryDirectory(dir=self.config["temp_dir"] or None, delete=False) as td:
+        with tempfile.TemporaryDirectory(dir=self.config["temp_dir"] or None, delete="temp_dir" not in self.config) as td:
             tex_file: str = os.path.join(td, basename + ".tex")
             with open(tex_file, "w", encoding="utf-8") as f:
                 f.write(tex)
@@ -88,19 +88,13 @@ class EmbedLatexPlugin(BasePlugin):
             )
 
             if proc.returncode != 0:
-                print(f"latex {tex_file} pdflatex error: {proc.stdout.decode('utf-8')}")
-                
-                # on error, write a simple SVG placeholder
-                with open(svg_path, "w", encoding="utf-8") as f:
-                    f.write(
-                        '<svg xmlns="http://www.w3.org/2000/svg"><text y="14">LaTeX error</text></svg>'
-                    )
-                return svg_path
+                raise RuntimeError(f"pdflatex failed with code {proc.returncode} \n{proc.stdout.decode('utf-8')}")
 
             pdf_file: str = os.path.join(td, basename + ".pdf")
 
             # Run dvisvgm to convert PDF to SVG
             dvisvgm_cmd = shlex.split(self.config["dvisvgm_cmd"]) + [
+                "-P",
                 pdf_file,
                 "-o",
                 svg_path,
@@ -113,12 +107,9 @@ class EmbedLatexPlugin(BasePlugin):
             )
 
             if proc.returncode != 0:
-                print(f"pdf {pdf_file} dvisvgm error: {proc.stdout.decode('utf-8')}")
-
-                with open(svg_path, "w", encoding="utf-8") as f:
-                    f.write(
-                        '<svg xmlns="http://www.w3.org/2000/svg"><text y="14">Conversion error</text></svg>'
-                    )
+                raise RuntimeError(
+                    f"dvisvgm failed with code {proc.returncode} \n {proc.stdout.decode('utf-8')}"
+                )
 
             return svg_path
 
@@ -136,12 +127,16 @@ class EmbedLatexPlugin(BasePlugin):
         )
 
         def repl(m: Match[str]) -> str:
-            body: str = m.group("body").rstrip()
-            h: str = self._hash(body)
-            basename: str = "latex-" + h
-            svg: str = self._render_to_svg(body, out_dir, basename)
-            alt: str = self._sanitize_alt(body)
-            return f'\n<img src="/{self.config["asset_subdir"]}/{os.path.basename(svg)}" alt="{alt}">\n'
+            try:
+                body: str = m.group("body").rstrip()
+                h: str = self._hash(body)
+                basename: str = "latex-" + h
+                svg: str = self._render_to_svg(body, out_dir, basename)
+                alt: str = self._sanitize_alt(body)
+                return f'\n<img src="/{self.config["asset_subdir"]}/{os.path.basename(svg)}" alt="{alt}">\n'
+            except Exception as e:
+                print(f"Error processing fenced pdflatex: {e}")
+                return m.group(0)  # return original on error
 
         return fence_re.sub(repl, md)
 
@@ -150,11 +145,19 @@ class EmbedLatexPlugin(BasePlugin):
         disp_re: Pattern[str] = re.compile(r"(?<!\\)\$\$(.+?)(?<!\\)\$\$", re.S)
 
         def repl(m: Match[str]) -> str:
-            body: str = m.group(1).strip()
-            h: str = self._hash(body)
-            basename: str = "latex-" + h
-            svg: str = self._render_to_svg(body, out_dir, basename)
-            alt: str = self._sanitize_alt(body)
-            return f'<img src="/{self.config["asset_subdir"]}/{os.path.basename(svg)}" alt="{alt}" style="display:block;margin:0.4em 0;">'
+            try:
+                body: str = m.group(1).strip()
+
+                # Add equation environment
+                body = f"${body}$"
+
+                h: str = self._hash(body)
+                basename: str = "latex-" + h
+                svg: str = self._render_to_svg(body, out_dir, basename)
+                alt: str = self._sanitize_alt(body)
+                return f'<img src="/{svg}" alt="{alt}" style="display:block;margin:0.4em 0;">'
+            except Exception as e:
+                print(f"Error processing display math: {e}")
+                return m.group(0)  # return original on error
 
         return disp_re.sub(repl, md)
