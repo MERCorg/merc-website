@@ -10,7 +10,7 @@ from mkdocs.plugins import BasePlugin
 from mkdocs.config import config_options
 
 
-class EmbedLatexPlugin(BasePlugin):
+class LatexMathPlugin(BasePlugin):
     """
     MkDocs plugin: render LaTeX math (inline $...$, display $$...$$ and fenced blocks with info 'pdflatex')
     to SVG images using pdflatex + dvisvgm.

@@ -22,7 +22,7 @@ theme:
 plugins:
   - privacy # Plugin that downloads all external resources and serves them locally to enhance privacy.
   - search
-  - embed_latex
+  - latex-math
 
 repo_name: MERCorg/merc
 repo_url: https://github.com/MERCorg/merc/
@@ -40,8 +40,8 @@ nav:
     - maintainers/publishing.md
   - Links:
     - 'Issue Tracker': https://github.com/MERCorg/merc/issues
-    - 'Documentation': https://mercorg.github.io/merc/
-    - 'Coverage': https://mercorg.github.io/merc/coverage/
+    - 'Documentation': https://MERCorg.github.io/merc/
+    - 'Coverage': https://MERCorg.github.io/merc/coverage/
 
 # Custom CSS
 extra_css:
