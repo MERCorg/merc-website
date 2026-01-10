@@ -19,12 +19,12 @@ class LatexMathPlugin(BasePlugin):
     config_scheme = (
         ("asset_subdir", config_options.Type(str, default="assets/latex")),
         (
-            "pdflatex_cmd",
+            "latex_path",
             config_options.Type(
-                str, default="pdflatex -interaction=nonstopmode -halt-on-error"
+                str, default="latex"
             ),
         ),
-        ("dvisvgm_cmd", config_options.Type(str, default="dvisvgm --no-fonts")),
+        ("dvisvgm_path", config_options.Type(str, default="dvisvgm")),
         ("temp_dir", config_options.Type(str, default="") ),
     )
 
@@ -42,17 +42,13 @@ class LatexMathPlugin(BasePlugin):
             os.makedirs(self.config["temp_dir"], exist_ok=True)
 
         # Extract the preamble (if any) and remove its fenced block from the markdown
-        markdown, pdflatex_preamble = self._extract_pdflatex_preamble(markdown)
+        markdown, math_preamble = self._extract_math_preamble(markdown)
 
-        # Store on the instance for later use by renderers
-        self.pdflatex_preamble = pdflatex_preamble
-
-
-        # First replace fenced code blocks with info 'pdflatex' -> display math images
-        markdown = self._replace_fenced_pdflatex(markdown, site_assets_dir, pdflatex_preamble)
+        # First replace fenced code blocks with info 'math'.
+        markdown = self._replace_fenced_math(markdown, site_assets_dir, math_preamble)
 
         # Then handle $$...$$ display math
-        markdown = self._replace_display_math(markdown, site_assets_dir, pdflatex_preamble)
+        markdown = self._replace_display_math(markdown, site_assets_dir, math_preamble)
 
         return markdown
 
@@ -86,32 +82,32 @@ class LatexMathPlugin(BasePlugin):
             with open(tex_file, "w", encoding="utf-8") as f:
                 f.write(tex)
 
-            pdflatex_cmd = shlex.split(self.config["pdflatex_cmd"]) + [
-                "-output-directory",
-                td,
-                tex_file,
-            ]
             proc = subprocess.run(
-                pdflatex_cmd,
+                [self.config["latex_path"],
+                    "-interaction=nonstopmode",
+                    "-halt-on-error",
+                    "-output-directory",
+                    td,
+                    tex_file,
+                ],
                 check=False,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
 
             if proc.returncode != 0:
-                raise RuntimeError(f"pdflatex failed with code {proc.returncode} \n{proc.stdout.decode('utf-8')}")
+                raise RuntimeError(f"latex failed with code {proc.returncode} \n{proc.stdout.decode('utf-8')}")
 
-            pdf_file: str = os.path.join(td, basename + ".pdf")
+            dvi_file: str = os.path.join(td, basename + ".dvi")
 
-            # Run dvisvgm to convert PDF to SVG
-            dvisvgm_cmd = shlex.split(self.config["dvisvgm_cmd"]) + [
-                "-P",
-                pdf_file,
-                "-o",
-                svg_path,
-            ]
+            # Run dvisvgm to convert DVI to SVG
             proc = subprocess.run(
-                dvisvgm_cmd,
+                [self.config["dvisvgm_path"],
+                    "--no-fonts",
+                    dvi_file,
+                    "-o",
+                    svg_path,
+                ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 check=False,
@@ -130,10 +126,10 @@ class LatexMathPlugin(BasePlugin):
         alt = re.sub(r"\s+", " ", alt)
         return (alt[:120] + "…") if len(alt) > 120 else alt
 
-    def _replace_fenced_pdflatex(self, md: str, out_dir: str, pdflatex_preamble: str) -> str:
-        """Replace fenced code blocks: ```pdflatex\n...\n```"""
+    def _replace_fenced_math(self, md: str, out_dir: str, pdflatex_preamble: str) -> str:
+        """Replace fenced code blocks: ```math\n...\n```"""
         fence_re: Pattern[str] = re.compile(
-            r"(^|\n)(?P<fence>```|~~~)\s*(?P<info>pdflatex\b[^\n]*)\n(?P<body>.*?)(?P=fence)\s*(?:\n|$)",
+            r"(^|\n)(?P<fence>```|~~~)\s*(?P<info>math\b[^\n]*)\n(?P<body>.*?)(?P=fence)\s*(?:\n|$)",
             re.S,
         )
 
@@ -173,12 +169,12 @@ class LatexMathPlugin(BasePlugin):
 
         return disp_re.sub(repl, md)
 
-    def _extract_pdflatex_preamble(self, text: str) -> tuple[str, str]:
+    def _extract_math_preamble(self, text: str) -> tuple[str, str]:
         """
-        Find a fenced code block whose info string starts with 'pdflatex_preamble' return (text_without_block, preamble_body).
+        Find a fenced code block whose info string starts with 'math_preamble' return (text_without_block, preamble_body).
         """
         fence_re = re.compile(
-            r"(^|\n)(?P<fence>```|~~~)\s*(?P<info>pdflatex_preamble*\b[^\n]*)\n(?P<body>.*?)(?P=fence)\s*(?:\n|$)",
+            r"(^|\n)(?P<fence>```|~~~)\s*(?P<info>math_preamble*\b[^\n]*)\n(?P<body>.*?)(?P=fence)\s*(?:\n|$)",
             re.S,
         )
         m = fence_re.search(text)

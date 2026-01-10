@@ -43,6 +43,7 @@ Later on in the tikz we can draw a circle with tikz:
 ## Configuration:
  
  
- - 'dvisvgm_cmd': Command to convert DVI to SVG. Default: `dvisvgm --no-fonts`
- - 'pdflatex_cmd': Command to compile LaTeX to DVI. Default: `pdflatex -interaction=nonstopmode -halt-on-error`
+ - 'dvisvgm_path': Path to the dvisvgm tool. Default: `dvisvgm`
+ - 'pdflatex_path': Path to the pdflatex tool. Default: `pdflatex`
  - 'asset_subdir': Subdirectory in the site output directory to store generated images
+ - 'temp_dir': Directory to use for temporary files, if enabled will dump files for inspection. Default: system temp directory.
