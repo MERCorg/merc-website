@@ -1,6 +1,6 @@
 # Testing
 
-Tests can be performed using `cargo test`, only tests of the `merc_sabre` crate can be executed with `cargo test -p merc_sabre --lib` and `cargo test -- --no-capture` can be used to show the output of tests. Alternatively, an improved test runner called [nextest](https://nexte.st/) can be used with `cargo nextest run` and can be installed using `cargo install cargo-nextest`. This test runner offers many improvements such as always showing output of failing tests, running more tests in parallel, and offer better error messages for segmentation faults (although these should be exceedingly rare). Some tests that are ignored by default require a larger stack size, which can be set using the environment variable `RUST_MIN_STACK`.
+Tests can be performed using `cargo test`. We can execute the tests of the `merc_sabre` crate with the command `cargo test -p merc_sabre --lib` and `cargo test -- --no-capture` can be used to show the output of tests. Alternatively, an improved test runner called [nextest](https://nexte.st/) can be used with `cargo nextest run` and can be installed using `cargo install cargo-nextest`. This test runner offers many improvements such as always showing output of failing tests, running more tests in parallel, and offer better error messages for segmentation faults (although these should be exceedingly rare). Some tests that are ignored by default require a larger stack size, which can be set using the environment variable `RUST_MIN_STACK`.
 
 For random testing we use a utility function `random_test`, from the `merc_utilities` crate, that prints the seed used for random generation when a test fails, allowing for easy reproduction of failures. This seed can then be passed to the test using the `MERC_SEED=<seed>` environment variable. Furthermore, some tests also dump the randomly generated input files to disk using the `DumpFiles` utility from the same crate, which can be helpful for debugging failing tests. These files are not written by default, but that can be enabled with the `MERC_DUMP=<absolute-path>` environment variable, which specifies the directory to write the files to.
 
@@ -10,8 +10,7 @@ For Linux targets it is possible to run the [LLVM address sanitizer](https://cla
 
 ##  Miri
 
-We test with [miri](https://github.com/rust-lang/miri) for unsafe code violations, which can be installed with `. This requires the `merc_miri` feature to be enabled using `--features=merc_miri`, which is automatically done by `cargo xtask miri test`.
-
+We test with [miri](https://github.com/rust-lang/miri) for unsafe code violations, which can be installed with `cargo install miri`. This requires the `merc_miri` feature to be enabled using `--features=merc_miri`, which is automatically done by `cargo xtask miri test`.
 
 To check for additional undefined behaviour at runtime we can also employ the `cargo careful` [project](https://github.com/RalfJung/cargo-careful). It compiles the standard library in nightly with many additional checks for undefined behaviour. It can also be installed with `cargo install cargo-careful` and requires the nightly toolchain. Then it can be executed with `cargo +nightly careful nextest run --target=x86_64-unknown-linux-gnu` (or `test` when `nextest` has not been installed). There is also a feature `merc_debug` that enables additional runtime checks. Furthermore, 
 

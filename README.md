@@ -9,7 +9,7 @@ pip install -r requirements.txt
 Furthermore, we use a local `embed-latex` MkDocs plugin to render LaTeX equations in the documentation.
 
 ```bash
-pip install -e plugins/embed_latex
+pip install -e plugins/mkdocs-latex-math
 ```
 
 The documentation can be then be served locally or built using the following commands:

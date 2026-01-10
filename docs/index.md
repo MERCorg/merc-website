@@ -21,7 +21,5 @@ Various crates are also published on [crates.io](https://crates.io/users/mlaveau
 
 # Links
 
-See the links on the left-hand navigation menu for easy access to the issue tracker, documentation and code coverage reports.
-
-# Literature
-
+See the `links` section of the navigation bar for various useful links related
+to the `MERC` project.

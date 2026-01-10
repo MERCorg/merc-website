@@ -1,4 +1,4 @@
-```pdflatex_preamble
+```math_preamble
 
 \usepackage{tikz}
 ```
@@ -9,12 +9,14 @@ The ATerm library is a Rust library for working with annotated terms (ATerms),
 inspired by the `C++` ATerm library in the [mCRL2](https://www.mcrl2.org/)
 toolset.
 
+```math
 
-```pdflatex
+\begin{tikzpicture}
+  \draw (0,0) circle (1cm);
 
-\begin{tikz}
 
-\end{tikz}
+
+\end{tikzpicture}
 ```
 
 
@@ -38,21 +40,13 @@ implementing it for both the `ATerm`, which has no lifetimes as it is owned, and
 `ATermRef<'a>` whose lifetime is bound by `'a`. 
 
 This is done by requiring that `'b: 'a`, so that we can implement `Term<'a, 'b>`
-for `&'b ATerm` for all lifetimes where `'b: 'a`, and implement `Term<'a, 'b>`
-for `ATermRef<'a>` for all lifetimes `'a` where `'b: 'a`. Because now we can be
-require that `'b: 'a` for the implementation of `Term<'a, 'b>` for `ATerm`, we
-can safely return `ATermRef<'a>` from methods of `Term<'a, 'b>`. We use
+for `ATerm`, and implement `Term<'a, 'b>` for `ATermRef<'a>`. Because now we can
+be require that `'b: 'a` for the implementation of `Term<'a, 'b>` for `ATerm`,
+we can safely return `ATermRef<'a>` from methods of `Term<'a, 'b>`. We use
 [trybuild](https://crates.io/crates/trybuild) to verify that our implementations
 are sound. 
 
-Without the 'b: 'a` constraint, we would implement Term<'a> for ATerm, for
-all lifetimes 'a, including the 'static lifetime, and this would be unsound.
-Alternatively, we could have implemented Term<'a> for &'a ATerm, but then ATerm
-cannot be used directly as a Term in many places.
-
-## Alternative
-
-Consider the alternative of having a single lifetime `'a` in the `Term<'a>` trait.
-In that case, we would have to implement `Term<'a>` for `ATermRef<'a>` for all lifetimes
-`'a`, including the `'static` lifetime. 
-
+Without the `b: 'a` constraint, we would implement `Term<'a>` for `ATerm`, for
+all lifetimes `'a`, including the `'static` lifetime, and this would be unsound.
+Alternatively, we could have implemented `Term<'a>` for `&'a ATerm`, but then
+`ATerm` cannot be used directly as a `Term` in many places.

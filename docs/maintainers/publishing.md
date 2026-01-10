@@ -11,7 +11,7 @@ The Cargo
 [documentation](https://doc.rust-lang.org/cargo/reference/publishing.html) for
 publishing crates on [crates.io](https://crates.io/) provides a good starting
 point for understanding the publishing process. Below are some additional
-guidelines specific to the `MERC` project. 
+guidelines specific to the `merc` project. 
 
 Every crate should contain a `README.md` file in its root directory, which will
 be displayed on the crate's page on `crates.io`. This file should provide an
@@ -27,3 +27,6 @@ They must still be published because otherwise crates that depend on them cannot
 be published.
 
  > ⚠️ **important** This is an internal crate and is not intended for public use.
+
+We generally aim to have crates with single purposes that can be reused in other
+projects.
