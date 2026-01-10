@@ -38,11 +38,21 @@ class EmbedLatexPlugin(BasePlugin):
         site_assets_dir: str = os.path.join(config["site_dir"], self.config["asset_subdir"])
         os.makedirs(site_assets_dir, exist_ok=True)
 
+        if self.config["temp_dir"]:
+            os.makedirs(self.config["temp_dir"], exist_ok=True)
+
+        # Extract the preamble (if any) and remove its fenced block from the markdown
+        markdown, pdflatex_preamble = self._extract_pdflatex_preamble(markdown)
+
+        # Store on the instance for later use by renderers
+        self.pdflatex_preamble = pdflatex_preamble
+
+
         # First replace fenced code blocks with info 'pdflatex' -> display math images
-        markdown = self._replace_fenced_pdflatex(markdown, site_assets_dir)
+        markdown = self._replace_fenced_pdflatex(markdown, site_assets_dir, pdflatex_preamble)
 
         # Then handle $$...$$ display math
-        markdown = self._replace_display_math(markdown, site_assets_dir)
+        markdown = self._replace_display_math(markdown, site_assets_dir, pdflatex_preamble)
 
         return markdown
 
@@ -52,7 +62,7 @@ class EmbedLatexPlugin(BasePlugin):
         h.update(tex.encode("utf-8"))
         return h.hexdigest()
 
-    def _render_to_svg(self, tex_body: str, out_dir: str, basename: str) -> str:
+    def _render_to_svg(self, tex_body: str, pdflatex_preamble: str, out_dir: str, basename: str) -> str:
         svg_path: str = os.path.join(out_dir, basename + ".svg")
         if os.path.exists(svg_path):
             # Skip rendering if SVG already exists, since we hash the input.
@@ -62,13 +72,14 @@ class EmbedLatexPlugin(BasePlugin):
         env = r"""\documentclass{article}
 \usepackage[active,tightpage]{preview}
 \usepackage{amsmath,amssymb}
+%s
 \begin{document}
 \begin{preview}
 %s
 \end{preview}
 \end{document}
 """
-        tex: str = env % tex_body
+        tex: str = env % (pdflatex_preamble, tex_body)
 
         with tempfile.TemporaryDirectory(dir=self.config["temp_dir"] or None, delete="temp_dir" not in self.config) as td:
             tex_file: str = os.path.join(td, basename + ".tex")
@@ -119,7 +130,7 @@ class EmbedLatexPlugin(BasePlugin):
         alt = re.sub(r"\s+", " ", alt)
         return (alt[:120] + "…") if len(alt) > 120 else alt
 
-    def _replace_fenced_pdflatex(self, md: str, out_dir: str) -> str:
+    def _replace_fenced_pdflatex(self, md: str, out_dir: str, pdflatex_preamble: str) -> str:
         """Replace fenced code blocks: ```pdflatex\n...\n```"""
         fence_re: Pattern[str] = re.compile(
             r"(^|\n)(?P<fence>```|~~~)\s*(?P<info>pdflatex\b[^\n]*)\n(?P<body>.*?)(?P=fence)\s*(?:\n|$)",
@@ -131,16 +142,16 @@ class EmbedLatexPlugin(BasePlugin):
                 body: str = m.group("body").rstrip()
                 h: str = self._hash(body)
                 basename: str = "latex-" + h
-                svg: str = self._render_to_svg(body, out_dir, basename)
+                svg: str = self._render_to_svg(body, pdflatex_preamble, out_dir, basename)
                 alt: str = self._sanitize_alt(body)
-                return f'\n<img src="/{self.config["asset_subdir"]}/{os.path.basename(svg)}" alt="{alt}">\n'
+                return f'\n<img src="/{svg}" alt="{alt}">\n'
             except Exception as e:
                 print(f"Error processing fenced pdflatex: {e}")
                 return m.group(0)  # return original on error
 
         return fence_re.sub(repl, md)
 
-    def _replace_display_math(self, md: str, out_dir: str) -> str:
+    def _replace_display_math(self, md: str, out_dir: str, pdflatex_preamble: str) -> str:
         """Replace $$...$$ (multiline)"""
         disp_re: Pattern[str] = re.compile(r"(?<!\\)\$\$(.+?)(?<!\\)\$\$", re.S)
 
@@ -153,7 +164,7 @@ class EmbedLatexPlugin(BasePlugin):
 
                 h: str = self._hash(body)
                 basename: str = "latex-" + h
-                svg: str = self._render_to_svg(body, out_dir, basename)
+                svg: str = self._render_to_svg(body, pdflatex_preamble, out_dir, basename)
                 alt: str = self._sanitize_alt(body)
                 return f'<img src="/{svg}" alt="{alt}" style="display:block;margin:0.4em 0;">'
             except Exception as e:
@@ -161,3 +172,19 @@ class EmbedLatexPlugin(BasePlugin):
                 return m.group(0)  # return original on error
 
         return disp_re.sub(repl, md)
+
+    def _extract_pdflatex_preamble(self, text: str) -> tuple[str, str]:
+        """
+        Find a fenced code block whose info string starts with 'pdflatex_preamble' return (text_without_block, preamble_body).
+        """
+        fence_re = re.compile(
+            r"(^|\n)(?P<fence>```|~~~)\s*(?P<info>pdflatex_preamble*\b[^\n]*)\n(?P<body>.*?)(?P=fence)\s*(?:\n|$)",
+            re.S,
+        )
+        m = fence_re.search(text)
+        if not m:
+            return text, ""
+        body = m.group("body").rstrip()
+        start, end = m.span()
+        new_text = text[:start] + text[end:]
+        return new_text, body
