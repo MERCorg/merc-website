@@ -1,0 +1,3 @@
+[submodule "plugins/mkdocs-latex-math"]
+	path = plugins/mkdocs-latex-math
+	url = https://github.com/MERCorg/mkdocs-latex-math

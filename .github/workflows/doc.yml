@@ -51,7 +51,7 @@ jobs:
         run: pip install -r requirements.txt
           
       - name: Install embed_latex
-        run: pip install git+https://github.com/MERCorg/mkdocs-latex-math.git
+        run: pip install ./plugins/mkdocs-latex-math
 
       - name: Build website documentation
         run: |

@@ -1,4 +1,4 @@
-# The MERc Project
+# The MERC Project
 
 The goal of the `merc` project is to provide a generic set of libraries and tools for (specification) language-agnostic model checking, written in the [Rust](https://rust-lang.org/) language. The name is an acronym for "[**m**CRL2](https://www.mcrl2.org/web/index.html) **e**xcept **R**eliable & **C**oncurrent", which should not be taken literally. Development of the `merc` project takes place on [GitHub](https://github.com/MERCorg/merc).
 
