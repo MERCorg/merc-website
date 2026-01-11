@@ -1,11 +1,11 @@
-# The MERC Project
+# The MERc Project
 
-The goal of the `MERC` project is to provide a generic set of libraries and tools for (specification) language-agnostic model checking, written in the [Rust](https://rust-lang.org/) language. The name is an acronym for "[**m**CRL2](https://www.mcrl2.org/web/index.html) **e**xcept **R**eliable & **C**oncurrent", which should not be taken literally. Development of the `merc` project takes place on [GitHub](https://github.com/MERCorg/merc).
+The goal of the `merc` project is to provide a generic set of libraries and tools for (specification) language-agnostic model checking, written in the [Rust](https://rust-lang.org/) language. The name is an acronym for "[**m**CRL2](https://www.mcrl2.org/web/index.html) **e**xcept **R**eliable & **C**oncurrent", which should not be taken literally. Development of the `merc` project takes place on [GitHub](https://github.com/MERCorg/merc).
 
 We aim to demonstrate efficient and correct implementations using (safe) Rust. The main focus is on clean interfaces to allow the libraries to be reused as well. The toolset supports and is tested on all major platforms: Linux, macOS and Windows.
 
 !!! note "Announcement"
-    The first release `v1.0` of `MERC` has been published in December 2025, and is available to download on the Github [releases](https://github.com/MERCorg/merc/releases) page. The corresponding crates have also been published on [crates.io](https://crates.io/users/mlaveaux).
+    The first release `v1.0` of `merc` has been published in December 2025, and is available to download on the Github [releases](https://github.com/MERCorg/merc/releases) page. The corresponding crates have also been published on [crates.io](https://crates.io/users/mlaveaux).
 
 # Overview
 
@@ -21,5 +21,5 @@ Various crates are also published on [crates.io](https://crates.io/users/mlaveau
 
 # Links
 
-See the `links` section of the navigation bar for various useful links related
-to the `MERC` project.
+See the links section of the navigation bar for various useful links related
+to the `merc` project.

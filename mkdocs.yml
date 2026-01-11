@@ -1,5 +1,5 @@
-site_name: The MERC project
-site_url: https://mercorg.github.io/merc-website/
+site_name: The MERC Project
+site_url: https://MERCorg.github.io/merc-website/
 theme:
   name: material
   palette:
@@ -35,7 +35,6 @@ nav:
     - developer/testing.md
     - developer/aterms.md
     - developer/impossible_futures.md
-    - developer/parsing.md
   - Maintainers:
     - maintainers/publishing.md
   - Links:

@@ -7,14 +7,17 @@
 
 The ATerm library is a Rust library for working with annotated terms (ATerms),
 inspired by the `C++` ATerm library in the [mCRL2](https://www.mcrl2.org/)
-toolset.
+toolset. Although the `annotated` part is no longer relevant, the name has
+stuck.
 
 ```math
 
 \begin{tikzpicture}
-  \draw (0,0) circle (1cm);
 
-
+\node[draw, rounded corners=6pt, minimum width=3.2cm, minimum height=1cm, align=center] (ATerm) at (0,0) {ATerm};
+\node[draw, rounded corners=6pt, minimum width=3.2cm, minimum height=1cm, align=center] (ATermRef) at (0,-4) {ATermRef};
+\draw[->, thick, bend left] (ATerm)    -- node[left]{copy()} (ATermRef);
+\draw[->, thick, bend left] (ATermRef) -- node[right]{protect()} (ATerm);
 
 \end{tikzpicture}
 ```

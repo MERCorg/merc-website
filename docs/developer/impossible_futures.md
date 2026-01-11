@@ -1,4 +1,4 @@
-```pdflatex_preamble
+```math_preamble
 \usepackage{algpseudocode}
 
 \newcommand{\refinesnew}[1]{\ensuremath{\textsc{refines-#1}_\textsc{new}}}
@@ -15,11 +15,11 @@
 \newcommand{\emptytrace}{\epsilon}
 ```
 
-# Variability Parity Games
+# Impossible Futures
 
-This is a testing file for math: $$\sum_{i}^{N} i$$, and pseudocode:
+This is a testing file for math: $\sum_{i}^{N} i$, and pseudocode:
 
-```pdflatex
+```math
 
 \begin{algorithmic}[1]
   \Procedure{Weak-Trace}{$s_1, s_2$}
