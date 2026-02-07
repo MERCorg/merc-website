@@ -15,13 +15,13 @@
 \newcommand{\emptytrace}{\epsilon}
 ```
 
-# Impossible Futures
+# Refinement
 
-This is a testing file for math: $\sum_{i}^{N} i$, and pseudocode:
+This is a testing file for math: $\mathit{this is math text}$ and $\sum_i^n i^2$, and pseudocode:
 
 ```math
 
-\begin{algorithmic}[1]
+\begin{algorithmic}
   \Procedure{Weak-Trace}{$s_1, s_2$}
   \State {let $\working$ be a stack containing the pair $(s_1, \{s \in \states_2 \mid s_2 \weaktransition{\emptytrace}_2 s\})$ }
   \State {let $\discovered \gets \{(s_1, \{s \in \states_2 \mid s_2 \weaktransition{\emptytrace}_2 s\})\}$}

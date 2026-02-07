@@ -34,7 +34,7 @@ nav:
     - developer/general.md
     - developer/testing.md
     - developer/aterms.md
-    - developer/impossible_futures.md
+    - developer/refinement.md
   - Maintainers:
     - maintainers/publishing.md
   - Links:
