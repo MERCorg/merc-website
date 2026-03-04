@@ -10,17 +10,21 @@ inspired by the `C++` ATerm library in the [mCRL2](https://www.mcrl2.org/)
 toolset. Although the `annotated` part is no longer relevant, the name has
 stuck.
 
+<div align="center">
+
 ```math
 
 \begin{tikzpicture}
 
 \node[draw, rounded corners=6pt, minimum width=3.2cm, minimum height=1cm, align=center] (ATerm) at (0,0) {ATerm};
 \node[draw, rounded corners=6pt, minimum width=3.2cm, minimum height=1cm, align=center] (ATermRef) at (0,-4) {ATermRef};
-\draw[->, thick, bend left] (ATerm)    -- node[left]{copy()} (ATermRef);
-\draw[->, thick, bend left] (ATermRef) -- node[right]{protect()} (ATerm);
+\draw[->, thick, bend right=30] (ATerm)    to node[left]{copy()} (ATermRef);
+\draw[->, thick, bend right=30] (ATermRef) to node[right]{protect()} (ATerm);
 
 \end{tikzpicture}
 ```
+
+</div>
 
 
 ## The Term Trait
