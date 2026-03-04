@@ -1,7 +1,7 @@
 
 ## Versioning scheme
 
-We use [Semantic Versioning](https://semver.org/) for versioning the `MERC`
+We use [semantic versioning](https://semver.org/) for the `merc`
 project, but for the time being we are not so concerned with breaking changes
 since the project is still in its early stages.
 
@@ -30,3 +30,12 @@ be published.
 
 We generally aim to have crates with single purposes that can be reused in other
 projects.
+
+There is an `xtask` command called `publish` that can be used to execute the necessary
+steps for publishing all crates. It will first perform a dry run to ensure that
+everything is in order before actually publishing the crates. You can run it
+using the following command from the root of the repository:
+
+ ```bash
+ cargo xtask publish
+ ```
