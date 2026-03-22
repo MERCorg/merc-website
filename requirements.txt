@@ -1,2 +1,3 @@
 mkdocs-material==9.7.1
 click==8.2.1 # Downgraded to fix issues with mkdocs serve live reloading not working.
+./plugins/mkdocs-latex-math

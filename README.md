@@ -6,10 +6,12 @@ The main website for the `merc` project, built using [MkDocs](https://www.mkdocs
 pip install -r requirements.txt
 ```
 
-Furthermore, we use a `latex-math` MkDocs plugin to render LaTeX equations in the documentation.
+Furthermore, we use a `latex-math` MkDocs plugin to render LaTeX equations in
+the documentation. During development it can be useful to install packages as
+editable using the following command:
 
 ```bash
-pip install -e ./plugins/mkdocs-latex-math
+pip install -e requirements.txt
 ```
 
 The documentation can be then be served locally or built using the following commands:
