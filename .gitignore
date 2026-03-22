@@ -5,3 +5,6 @@ __pycache__
 # Ignore the generated site
 site/
 .cache/
+
+# Ignore generated files
+plugins/mkdocs-latex-math/build/
