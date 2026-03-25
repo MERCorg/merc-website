@@ -2,10 +2,9 @@
 
 \usepackage{tikz}
 ```
+# The ATerm Library
 
  > ⚠️ **important** This documentation is WIP.
-
-# The ATerm Library
 
 The ATerm library is a Rust library for working with annotated terms (ATerms),
 inspired by the `C++` ATerm library in the [mCRL2](https://www.mcrl2.org/)

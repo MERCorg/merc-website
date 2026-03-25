@@ -1,5 +1,7 @@
-# Calculating a network of LTSs in mCRL2 - ltscombine
+# Combining LTSs
 
+ > ⚠️ **important** This documentation is WIP.
+ 
 The original version of the tool `ltscombine` in the mCRL2 toolset was implemented by Willem Rietdijk as part of his master's thesis. The work is inspired by the composition of networks of LTSs in CADP.
 
 Let $L_0, \ldots, L_n$ be labelled transition systems such that $L_i = (S_i, s^0_i, \Sigma_i, \rightarrow_i)$, where
