@@ -15,9 +15,15 @@
 \newcommand{\emptytrace}{\epsilon}
 ```
 
+ > ⚠️ **important** This documentation is WIP.
+
 # Refinement
 
-This is a testing file for math: $\mathit{this is math text}$ and $\sum_i^n i^2$, and pseudocode:
+The antichain based refinement checking algorithms implemented in `merc-lts` are based on the following paper:
+
+ >  Maurice Laveaux, Jan Friso Groote and Tim A.C. Willemse. "Correct and efficient antichain algorithms for refinement checking". Logical Methods in Computer Science, 2021. [DOI](https://doi.org/10.23638/LMCS-17(1:8)2021).
+
+The pseudocode for the weak trace refinement checking algorithm is shown below.
 
 ```math
 

@@ -1,5 +1,5 @@
 
-## Versioning scheme
+## Versioning Scheme
 
 We use [semantic versioning](https://semver.org/) for the `merc`
 project, but for the time being we are not so concerned with breaking changes
