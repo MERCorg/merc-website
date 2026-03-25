@@ -44,8 +44,11 @@ jobs:
           python-version: '3.14'
           cache: 'pip'
 
-      - name: Install Ubuntu packages
-        run: sudo apt-get install texlive-full dvisvgm
+      - name: Install Ubuntu Dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: texlive-full dvisvgm
+          version: 1.0
 
       - name: Install dependencies
         run: pip install -r requirements.txt
