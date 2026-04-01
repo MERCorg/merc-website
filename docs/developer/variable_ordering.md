@@ -1,4 +1,4 @@
-# Variable ordering
+# Variable Ordering
 
 A variable ordering for linear process specifications (`.lps`) and parameterised
 Boolean equation systems (`.pbes`) can be computed using the `merc-sym` tool

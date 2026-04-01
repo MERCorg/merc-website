@@ -35,6 +35,8 @@ nav:
     - developer/testing.md
     - developer/aterms.md
     - developer/refinement.md
+    - developer/combine.md
+    - developer/variable_ordering.md
   - Maintainers:
     - maintainers/publishing.md
   - Links:

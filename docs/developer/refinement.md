@@ -15,9 +15,9 @@
 \newcommand{\emptytrace}{\epsilon}
 ```
 
- > ⚠️ **important** This documentation is WIP.
-
 # Refinement
+
+ > ⚠️ **important** This documentation is WIP.
 
 The antichain based refinement checking algorithms implemented in `merc-lts` are based on the following paper:
 
