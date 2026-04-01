@@ -49,6 +49,7 @@ jobs:
         with:
           packages: texlive-full dvisvgm
           version: 1.0
+          execute_install_scripts: true
 
       - name: Install dependencies
         run: pip install -r requirements.txt
