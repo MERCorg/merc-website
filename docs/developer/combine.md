@@ -1,3 +1,7 @@
+```math_preamble
+\usepackage{algpseudocode}
+
+```
 # Combining LTSs
 
  > ⚠️ **important** This documentation is WIP.
@@ -59,32 +63,47 @@ We now give a high-level description of the algorithm.
 
 Let $C$ be a set of communications of the form $a_1 | \cdots | a_n \rightarrow c$, with $n > 1$, and $a_i$ and $c$ action names. The function $\gamma_C$ applies the communications to a multiaction $\alpha$. This is defined as follows:
 
+<div align="center">
+```math
 $$\gamma_\emptyset(\alpha) = \alpha$$
+```
+</div>
 
+<div align="center">
+```math
 $$\gamma_{C_1 \cup C_2}(\alpha) = \gamma_{C_1}(\gamma_{C_2}(\alpha))$$
+```
+</div>
 
-$$\gamma_{\{a_1|\cdots|a_n \rightarrow b\}}(\alpha) = \begin{cases} b(d)\ |\ \gamma_{a_1|\cdots|a_n \rightarrow b}(\alpha \setminus (a_1(d)|\cdots|a_n(d))) & \text{if } a_1(d)|\cdots|a_n(d) \sqsubseteq \alpha \text{ for some } d \\ \alpha & \text{otherwise} \end{cases}$$
+<div align="center">
+```math
+\begin{align*}
+\gamma_{\{a_1|\cdots|a_n \rightarrow b\}}(\alpha) = \begin{cases}
+  b(d)\ |\ \gamma_{a_1|\cdots|a_n \rightarrow b}(\alpha \setminus (a_1(d)|\cdots|a_n(d))) & \text{if } a_1(d)|\cdots|a_n(d) \sqsubseteq \alpha \text{ for some } d \\
+  \alpha & \text{otherwise}
+\end{cases}
+\end{align*}
+```
+</div>
 
 ---
 
 ## Algorithm
 
+<div align="center">
+```math
 $$\textbf{Compose}(I,\ A,\ C,\ \{L_0, \ldots, L_n\})$$
+```
+</div>
 
 **Input:** a set of actions $I$ to be hidden, a set of multi-action names $A$ to be allowed, a set of communication expressions $C$, a set of LTSs $\{L_0, \ldots, L_n\}$
 
 **Output:** The LTS $\tau_I \nabla_A \Gamma_C (L_0 \parallel \cdots \parallel L_n)$
 
-$$
-\begin{array}{l}
-\textbf{algorithm } \text{Compose}(I, A, C, \{L_0, \ldots, L_n\}) \\
-\hline
-\end{array}
-$$
 
-```latex
-\begin{algorithm}
-\caption{Compose$(I, A, C, \{L_0, \ldots, L_n\})$}
+The pseudocode for $Compose$(I, A, C, \{L_0, \ldots, L_n\})$:
+
+```math
 \begin{algorithmic}[1]
 \State $s^0 \gets (s^0_0, \ldots, s^0_n)$
 \State $\textit{todo} \gets \{s^0\}$
@@ -108,5 +127,4 @@ $$
     \EndFor
 \EndWhile
 \end{algorithmic}
-\end{algorithm}
 ```
