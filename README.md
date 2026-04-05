@@ -1,6 +1,12 @@
 # Overview
 
-The main website for the `merc` project, built using [MkDocs](https://www.mkdocs.org/) and hosted on GitHub Pages. It uses the [Material](https://squidfunk.github.io/mkdocs-material/) theme for a modern design. First of all, the require [Python](https://www.python.org/) dependencies must be installed. Ideally, this is done in a virtual environment.
+The main website for the `merc` project, built using [MkDocs](https://www.mkdocs.org/) and hosted on GitHub Pages. It uses the [Material](https://squidfunk.github.io/mkdocs-material/) theme for a modern design. First of all, the require [Python](https://www.python.org/) dependencies must be installed. Ideally, this is done in a virtual environment. First the submodules must be initialized and updated:
+
+```bash
+git submodule update --init
+```
+
+Then the dependencies can be installed using the following command:
 
 ```bash
 pip install -r requirements.txt

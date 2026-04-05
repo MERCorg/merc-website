@@ -20,6 +20,12 @@ Various tools have been implemented so far:
 
 Various crates are also published on [crates.io](https://crates.io/users/mlaveaux), see the `crates` directory for an overview.
 
+## Slint
+
+The GUI tools are implemented using [Slint](https://slint-ui.com/), a Rust-based GUI toolkit. 
+
+![Made with Slint](images/MadeWithSlint-logo-whitebg.png){ align=right width=120 }
+
 # Links
 
 See the links section of the navigation bar for various useful links related

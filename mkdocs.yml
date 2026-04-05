@@ -50,6 +50,7 @@ extra_css:
 
 # Enable markdown extensions
 markdown_extensions:
+  - attr_list # Allows adding HTML attributes and CSS classes to Markdown elements.
   - admonition # The admonition extension allows you to create callout boxes.
   - pymdownx.highlight: # Use Pygments for syntax highlighting at build time
       use_pygments: true    
