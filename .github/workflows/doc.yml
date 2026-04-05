@@ -47,13 +47,13 @@ jobs:
       - name: Install Ubuntu Dependencies
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          packages: texlive-full dvisvgm
+          packages: dvisvgm
           version: 1.0
           execute_install_scripts: true
 
-      - name: Reinstall TeX packages to run maintainer scripts
+      - name: Install Texlive
         run: |
-          sudo fmtutil-sys --all
+          sudo apt update && sudo apt install texlive-full
 
       - name: Install dependencies
         run: pip install -r requirements.txt
