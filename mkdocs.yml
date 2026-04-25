@@ -30,13 +30,13 @@ repo_url: https://github.com/MERCorg/merc/
 # Definition for the left-hand navigation menu
 nav:
   - Home: index.md
+  - Tools:
+    - tools/merc-sym.md
   - Development:
     - developer/general.md
     - developer/testing.md
+    - developer/documentation.md
     - developer/aterms.md
-    - developer/refinement.md
-    - developer/combine.md
-    - developer/variable_ordering.md
   - Maintainers:
     - maintainers/publishing.md
   - Links:
