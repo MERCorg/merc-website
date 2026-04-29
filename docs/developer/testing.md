@@ -4,6 +4,21 @@ Tests can be performed using `cargo test`. We can execute the tests of the `merc
 
 For random testing we use a utility function `random_test`, from the `merc_utilities` crate, that prints the seed used for random generation when a test fails, allowing for easy reproduction of failures. This seed can then be passed to the test using the `MERC_SEED=<seed>` environment variable. Furthermore, some tests also dump the randomly generated input files to disk using the `DumpFiles` utility from the same crate, which can be helpful for debugging failing tests. These files are not written by default, but that can be enabled with the `MERC_DUMP=<absolute-path>` environment variable, which specifies the directory to write the files to.
 
+## mCRL2 comparison tests
+
+To ensure the correctness of our implementation we also compare our results to
+the mCRL2 toolset. These tests require `MCRL2_PATH` to be set to the path of the
+mCRL2 tools, and the CI runs all tests that are named `mcrl2` with an install of
+the mCRL2 toolset.
+
+## Loom
+
+We use [Loom](https://github.com/tokio-rs/loom) for testing low-level concurrent
+code. Loom is a tool that uses model checking to explore all relevant
+interleavings of parallel code to find data races. See their documentation on
+how to run the tests with loom. The CI only runs tests under loom that have
+`loom` in their name.
+
 ## LLVM Sanitizer
 
 For Linux targets it is possible to run the [LLVM address sanitizer](https://clang.llvm.org/docs/AddressSanitizer.html) to detect (among others) use-after-free issues in unsafe code. This requires the nightly version of the rust compiler, which can acquired using `rustup toolchain install nightly` and the rust-src for the standard library, to be installed with `rustup component add rust-src --toolchain nightly`. To show the symbols for the resulting stacktrace it is also convenient to install `llvm-symbolizer`, for example using `sudo apt install llvm` on Ubuntu. Afterwards, the tests can be executed with the address sanitizer enabled using `cargo +nightly xtask address-sanitizer`. Similarly, we also provide a task for the [thread sanitizer](https://clang.llvm.org/docs/ThreadSanitizer.html) and [memory sanitizer](https://github.com/google/sanitizers/wiki/memorysanitizer).
