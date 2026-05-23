@@ -5,18 +5,19 @@ The goal of the `merc` project is to provide a generic set of libraries and tool
 We aim to demonstrate efficient and correct implementations using (safe) Rust. The main focus is on clean interfaces to allow the libraries to be reused as well. The toolset supports and is tested on all major platforms: Linux, macOS and Windows.
 
 !!! note "Announcement"
-    The release `v1.1` of `merc` has been published in January 2026, and is available to download on the Github [releases](https://github.com/MERCorg/merc/releases) page. The corresponding crates have also been published on [crates.io](https://crates.io/users/mlaveaux). This release was mostly to force a Zenodo upload, and no important changes were made.
+    The release `v2.0` of `merc` has been published in June 2026, and is available to download on the Github [releases](https://github.com/MERCorg/merc/releases) page. The corresponding crates have also been published on [crates.io](https://crates.io/users/mlaveaux). This release comes with a lot of general improvements, and the addition of the `merc-lps` tool for exploring linear process specifications.
 
 # Overview
 
 Various tools have been implemented so far:
 
- - `merc-lts` implement various (signature-based) bisimulation algorithms for labelled transition systems in the mCRL2 binary [`.lts`](https://www.mcrl2.org/web/user_manual/tools/lts.html) format and the AUTomaton (or ALDEBARAN) [`.aut`](https://cadp.inria.fr/man/aut.html) format. Using [CADP](https://cadp.inria.fr/) it can also read and write the [`.bcg`](https://cadp.inria.fr/man/bcg.html) format.
+ - `merc-lts` implement various bisimulation algorithms for labelled transition systems in the mCRL2 binary [`.lts`](https://www.mcrl2.org/web/user_manual/tools/lts.html) format and the AUTomaton (or ALDEBARAN) [`.aut`](https://cadp.inria.fr/man/aut.html) format. Using [CADP](https://cadp.inria.fr/) it can also read and write the [`.bcg`](https://cadp.inria.fr/man/bcg.html) format.
  - `merc-rewrite` allows rewriting of Rewrite Engine Competition specifications ([REC](https://doi.org/10.1007/978-3-030-17502-3_6)) using [Sabre](https://arxiv.org/abs/2202.08687) (**S**et **A**utomaton **B**ased **RE**writing).
  - `merc-vpg` can be used to solve (variability) parity games in the [PGSolver](https://github.com/tcsprojects/pgsolver) `.pg` format, and a slightly extended variability parity game `.vpg` format. Furthermore, it can generate variability parity games for model checking modal mu-calculus on LTSs.
+ - `merc-lps` can explore linear process specifications using symbolic exploration techniques, it is located in the `tools/mcrl2` workspace.
  - `merc-pbes` can identify symmetries in parameterised boolean equation systems [PBES](https://doi.org/10.1016%2Fj.tcs.2005.06.016), located in the `tools/mcrl2` workspace.
  - `merc-ltsgraph` is a GUI tool to visualize LTSs, located in the `tools/gui` workspace.
- - `merc-sym` can explore a symbolic state space given in Sylvan's binary `.ldd` format, or the mCRL2 symbolic binary `.sym` format. It can also compute orderings using `kahypar` using the MINCE algorithm.
+ - `merc-sym` can explore a symbolic state space given in Sylvan's binary `.ldd` format, or the mCRL2 symbolic binary `.sym` format. It can also compute orderings using `kahypar` using the MINCE algorithm, which also requires the `kahypar` tool to be available.
 
 Various crates are also published on [crates.io](https://crates.io/users/mlaveaux), see the `crates` directory for an overview.
 
