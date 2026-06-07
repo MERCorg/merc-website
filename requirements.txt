@@ -1,3 +1,2 @@
-mkdocs-material==9.7.6
-click==8.4.1 # Downgraded to fix issues with mkdocs serve live reloading not working.
-./plugins/mkdocs-latex-math
+zensical==0.0.44
+./plugins/zensical-latex-math

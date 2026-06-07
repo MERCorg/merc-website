@@ -21,6 +21,6 @@ pip install -e requirements.txt
 ```
 
 The documentation can be then be served locally or built using the following commands:
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
+* `zensical serve` - Start the live-reloading docs server.
+* `zensical build` - Build the documentation site.
 
