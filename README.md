@@ -1,12 +1,13 @@
 # Overview
 
-The main website for the `merc` project, built using [MkDocs](https://www.mkdocs.org/) and hosted on GitHub Pages. It uses the [Material](https://squidfunk.github.io/mkdocs-material/) theme for a modern design. First of all, the require [Python](https://www.python.org/) dependencies must be installed. Ideally, this is done in a virtual environment. First the submodules must be initialized and updated:
+The main website for the `merc` project, built using [Zensical](https://zensical.org) (a replacement for [MkDocs](https://www.mkdocs.org/)) and hosted on GitHub Pages. It uses the [Material](https://squidfunk.github.io/mkdocs-material/) theme for a modern design. First the submodules must be initialized and updated:
 
 ```bash
 git submodule update --init
 ```
 
-Then the dependencies can be installed using the following command:
+Then the required [Python](https://www.python.org/) dependencies must be
+installed. Ideally using a virtual environment and the following command:
 
 ```bash
 pip install -r requirements.txt
@@ -17,10 +18,10 @@ the documentation. During development it can be useful to install packages as
 editable using the following command:
 
 ```bash
-pip install -e requirements.txt
+pip install -e 3rd_party/zensical-latex-math
 ```
 
-The documentation can be then be served locally or built using the following commands:
+The documentation can then be served locally or built using the following commands:
 * `zensical serve` - Start the live-reloading docs server.
 * `zensical build` - Build the documentation site.
 
