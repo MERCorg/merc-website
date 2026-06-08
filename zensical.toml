@@ -36,12 +36,14 @@ features = [
 [[project.theme.palette]]
 scheme = "slate"
 primary = "amber"
+accent = "amber"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
 
 [[project.theme.palette]]
 scheme = "default"
 primary = "amber"
+accent = "amber"
 toggle.icon = "lucide/sun"
 toggle.name = "Switch to dark mode"
 
