@@ -1,2 +1,2 @@
-zensical==0.0.44
+zensical==0.0.51
 ./plugins/zensical-latex-math
