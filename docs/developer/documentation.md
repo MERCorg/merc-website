@@ -22,6 +22,6 @@ relevant papers that the techniques in the crate are based on.
 ## Tools
 
 For tools the documentation should focus on the usage of the tool, i.e., provide
-more general text about what worksflows the tools are part of, and general flags
+more general text about what workflows the tools are part of, and general flags
 that should be used in the tool. 
 

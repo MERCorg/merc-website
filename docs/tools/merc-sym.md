@@ -2,7 +2,7 @@
 
 A variable ordering for linear process specifications (`.lps`) and parameterised
 Boolean equation systems (`.pbes`) can be computed using the `merc-sym` tool
-with the `reorder` option. These ordering are based on heuristics, for now only
+with the `reorder` option. These orderings are based on heuristics, for now only
 the balanced hypergraph partition heuristic called `MINCE` has been implemented.
 See the paper, for more details:
 

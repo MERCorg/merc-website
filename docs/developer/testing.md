@@ -27,7 +27,7 @@ For Linux targets it is possible to run the [LLVM address sanitizer](https://cla
 
 We test with [miri](https://github.com/rust-lang/miri) for unsafe code violations, which can be installed with `cargo install miri`. This requires the `merc_miri` feature to be enabled using `--features=merc_miri`, which is automatically done by `cargo xtask miri test`.
 
-To check for additional undefined behaviour at runtime we can also employ the `cargo careful` [project](https://github.com/RalfJung/cargo-careful). It compiles the standard library in nightly with many additional checks for undefined behaviour. It can also be installed with `cargo install cargo-careful` and requires the nightly toolchain. Then it can be executed with `cargo +nightly careful nextest run --target=x86_64-unknown-linux-gnu` (or `test` when `nextest` has not been installed). There is also a feature `merc_debug` that enables additional runtime checks. Furthermore, 
+To check for additional undefined behaviour at runtime we can also employ the `cargo careful` [project](https://github.com/RalfJung/cargo-careful). It compiles the standard library in nightly with many additional checks for undefined behaviour. It can also be installed with `cargo install cargo-careful` and requires the nightly toolchain. Then it can be executed with `cargo +nightly careful nextest run --target=x86_64-unknown-linux-gnu` (or `test` when `nextest` has not been installed). There is also a feature `merc_debug` that enables additional runtime checks.
 
 ## Code Coverage
 
