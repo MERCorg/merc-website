@@ -11,7 +11,7 @@ We aim to demonstrate efficient and correct implementations using (safe) Rust. T
 
 Various tools have been implemented so far:
 
- - `merc-lts` implement various bisimulation algorithms for labelled transition systems in the mCRL2 binary [`.lts`](https://www.mcrl2.org/web/user_manual/tools/lts.html) format and the AUTomaton (or ALDEBARAN) [`.aut`](https://cadp.inria.fr/man/aut.html) format. Using [CADP](https://cadp.inria.fr/) it can also read and write the [`.bcg`](https://cadp.inria.fr/man/bcg.html) format.
+ - `merc-lts` implements various bisimulation algorithms for labelled transition systems in the mCRL2 binary [`.lts`](https://www.mcrl2.org/web/user_manual/tools/lts.html) format and the AUTomaton (or ALDEBARAN) [`.aut`](https://cadp.inria.fr/man/aut.html) format. Using [CADP](https://cadp.inria.fr/) it can also read and write the [`.bcg`](https://cadp.inria.fr/man/bcg.html) format.
  - `merc-rewrite` allows rewriting of Rewrite Engine Competition specifications ([REC](https://doi.org/10.1007/978-3-030-17502-3_6)) using [Sabre](https://arxiv.org/abs/2202.08687) (**S**et **A**utomaton **B**ased **RE**writing).
  - `merc-vpg` can be used to solve (variability) parity games in the [PGSolver](https://github.com/tcsprojects/pgsolver) `.pg` format, and a slightly extended variability parity game `.vpg` format. Furthermore, it can generate variability parity games for model checking modal mu-calculus on LTSs.
  - `merc-lps` can explore linear process specifications using symbolic exploration techniques, it is located in the `tools/mcrl2` workspace.
