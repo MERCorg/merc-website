@@ -17,6 +17,8 @@ nav = [
     "developer/documentation.md",
     "developer/aterms.md",
     "developer/typechecking.md",
+    "developer/set-automaton.md",
+    "developer/machine-numbers.md",
     "developer/stark.md",
   ] },
   { Maintainers = [
