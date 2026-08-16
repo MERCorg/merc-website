@@ -1,6 +1,10 @@
 # Overview
 
-The main website for the `merc` project, built using [Zensical](https://zensical.org) (a replacement for [MkDocs](https://www.mkdocs.org/)) and hosted on GitHub Pages. It uses the [Material](https://squidfunk.github.io/mkdocs-material/) theme for a modern design. First the submodules must be initialized and updated:
+The main website for the `merc` project, built using
+[Zensical](https://zensical.org) (a replacement for
+[MkDocs](https://www.mkdocs.org/)) and hosted on GitHub Pages. It uses the
+[Material](https://squidfunk.github.io/mkdocs-material/) theme for a modern
+design. First the submodules must be initialized and updated:
 
 ```bash
 git submodule update --init
