@@ -1,8 +1,25 @@
 # Testing
 
-Tests can be performed using `cargo test`. We can execute the tests of the `merc_sabre` crate with the command `cargo test -p merc_sabre --lib` and `cargo test -- --no-capture` can be used to show the output of tests. Alternatively, an improved test runner called [nextest](https://nexte.st/) can be used with `cargo nextest run` and can be installed using `cargo install cargo-nextest`. This test runner offers many improvements such as always showing output of failing tests, running more tests in parallel, and offer better error messages for segmentation faults (although these should be exceedingly rare). Some tests that are ignored by default require a larger stack size, which can be set using the environment variable `RUST_MIN_STACK`.
+Tests can be performed using `cargo test`. We can execute the tests of the
+`merc_sabre` crate with the command `cargo test -p merc_sabre --lib` and `cargo
+test -- --no-capture` can be used to show the output of tests. Alternatively, an
+improved test runner called [nextest](https://nexte.st/) can be used with `cargo
+nextest run` and can be installed using `cargo install cargo-nextest`. This test
+runner offers many improvements such as always showing output of failing tests,
+running more tests in parallel, and offer better error messages for segmentation
+faults (although these should be exceedingly rare). Some tests that are ignored
+by default require a larger stack size, which can be set using the environment
+variable `RUST_MIN_STACK`.
 
-For random testing we use a utility function `random_test`, from the `merc_utilities` crate, that prints the seed used for random generation when a test fails, allowing for easy reproduction of failures. This seed can then be passed to the test using the `MERC_SEED=<seed>` environment variable. Furthermore, some tests also dump the randomly generated input files to disk using the `DumpFiles` utility from the same crate, which can be helpful for debugging failing tests. These files are not written by default, but that can be enabled with the `MERC_DUMP=<absolute-path>` environment variable, which specifies the directory to write the files to.
+For random testing we use a utility function `random_test`, from the
+`merc_utilities` crate, that prints the seed used for random generation when a
+test fails, allowing for easy reproduction of failures. This seed can then be
+passed to the test using the `MERC_SEED=<seed>` environment variable.
+Furthermore, some tests also dump the randomly generated input files to disk
+using the `DumpFiles` utility from the same crate, which can be helpful for
+debugging failing tests. These files are not written by default, but that can be
+enabled with the `MERC_DUMP=<absolute-path>` environment variable, which
+specifies the directory to write the files to.
 
 ## mCRL2 comparison tests
 
@@ -21,14 +38,43 @@ how to run the tests with loom. The CI only runs tests under loom that have
 
 ## LLVM Sanitizer
 
-For Linux targets it is possible to run the [LLVM address sanitizer](https://clang.llvm.org/docs/AddressSanitizer.html) to detect (among others) use-after-free issues in unsafe code. This requires the nightly version of the rust compiler, which can acquired using `rustup toolchain install nightly` and the rust-src for the standard library, to be installed with `rustup component add rust-src --toolchain nightly`. To show the symbols for the resulting stacktrace it is also convenient to install `llvm-symbolizer`, for example using `sudo apt install llvm` on Ubuntu. Afterwards, the tests can be executed with the address sanitizer enabled using `cargo +nightly xtask address-sanitizer`. Similarly, we also provide a task for the [thread sanitizer](https://clang.llvm.org/docs/ThreadSanitizer.html) and [memory sanitizer](https://github.com/google/sanitizers/wiki/memorysanitizer).
+For Linux targets it is possible to run the [LLVM address
+sanitizer](https://clang.llvm.org/docs/AddressSanitizer.html) to detect (among
+others) use-after-free issues in unsafe code. This requires the nightly version
+of the rust compiler, which can acquired using `rustup toolchain install
+nightly` and the rust-src for the standard library, to be installed with `rustup
+component add rust-src --toolchain nightly`. To show the symbols for the
+resulting stacktrace it is also convenient to install `llvm-symbolizer`, for
+example using `sudo apt install llvm` on Ubuntu. Afterwards, the tests can be
+executed with the address sanitizer enabled using `cargo +nightly xtask
+address-sanitizer`. Similarly, we also provide a task for the [thread
+sanitizer](https://clang.llvm.org/docs/ThreadSanitizer.html) and [memory
+sanitizer](https://github.com/google/sanitizers/wiki/memorysanitizer).
 
 ##  Miri
 
-We test with [miri](https://github.com/rust-lang/miri) for unsafe code violations, which can be installed with `cargo install miri`. This requires the `merc_miri` feature to be enabled using `--features=merc_miri`, which is automatically done by `cargo xtask miri test`.
+We test with [miri](https://github.com/rust-lang/miri) for unsafe code
+violations, which can be installed with `cargo install miri`. This requires the
+`merc_miri` feature to be enabled using `--features=merc_miri`, which is
+automatically done by `cargo xtask miri test`.
 
-To check for additional undefined behaviour at runtime we can also employ the `cargo careful` [project](https://github.com/RalfJung/cargo-careful). It compiles the standard library in nightly with many additional checks for undefined behaviour. It can also be installed with `cargo install cargo-careful` and requires the nightly toolchain. Then it can be executed with `cargo +nightly careful nextest run --target=x86_64-unknown-linux-gnu` (or `test` when `nextest` has not been installed). There is also a feature `merc_debug` that enables additional runtime checks.
+To check for additional undefined behaviour at runtime we can also employ the
+`cargo careful` [project](https://github.com/RalfJung/cargo-careful). It
+compiles the standard library in nightly with many additional checks for
+undefined behaviour. It can also be installed with `cargo install cargo-careful`
+and requires the nightly toolchain. Then it can be executed with `cargo +nightly
+careful nextest run --target=x86_64-unknown-linux-gnu` (or `test` when `nextest`
+has not been installed). There is also a feature `merc_debug` that enables
+additional runtime checks.
 
 ## Code Coverage
 
-Code coverage can be automatically generated for the full workspace using a cargo task. The code coverage itself is generated by LLVM with source code instrumentation, which requires the preview tools to be installed `rustup component add llvm-tools-preview`, and [grcov](https://github.com/mozilla/grcov), which can be acquired using `cargo install grcov`. To execute the code coverage task use `cargo xtask coverage test`. The resulting HTML code coverage report can be found in `target/coverage` or online at the following [page](https://mercorg.github.io/merc/coverage/index.html).
+Code coverage can be automatically generated for the full workspace using a
+cargo task. The code coverage itself is generated by LLVM with source code
+instrumentation, which requires the preview tools to be installed `rustup
+component add llvm-tools-preview`, and
+[grcov](https://github.com/mozilla/grcov), which can be acquired using `cargo
+install grcov`. To execute the code coverage task use `cargo xtask coverage
+test`. The resulting HTML code coverage report can be found in `target/coverage`
+or online at the following
+[page](https://mercorg.github.io/merc/coverage/index.html).

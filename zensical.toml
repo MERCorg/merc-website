@@ -9,7 +9,7 @@ extra_css = ["stylesheets/extra.css"]
 nav = [
   { Home = "index.md" },
   { Tools = [
-    "tools/merc-sym.md",
+    "tools/reordering.md",
   ] },
   { Development = [
     "developer/general.md",
@@ -19,7 +19,11 @@ nav = [
     "developer/typechecking.md",
     "developer/set-automaton.md",
     "developer/machine-numbers.md",
-    "developer/stark.md",
+    "developer/canonicalize-orbit.md",
+    { "Symbolic Parity Games" = [
+      "developer/symbolic/zielonka.md",
+      "developer/symbolic/partial-solving.md",
+    ] },
   ] },
   { Maintainers = [
     "maintainers/publishing.md",
