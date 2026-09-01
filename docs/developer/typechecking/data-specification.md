@@ -1,56 +1,8 @@
-# Type Checking
+# Data Specification
 
-The `merc_typecheck` crate type checks mCRL2 data specifications, following the
-definitions in *Modeling and Analysis of Communicating Systems* (Groote &
-Mousavi, MIT Press 2014). A type checker turns the loosely-structured syntax
-tree produced by the parser into a fully typed specification: it resolves every
-name, decides the sort of every expression, chooses between overloaded
-operators, and inserts the implicit coercions that the surface language leaves
-out (such as reading a natural number where a real number is expected).
-
-Rather than performing all of this in one recursive traversal, merc splits type
-checking into a **pipeline of phases**, each with a well-defined input and
-output. The architecture is *query-based* in the style of the Rust compiler:
-each derived fact — the signature of a specification, the sort denoted by a
-declaration, the typing of an equation — is a memoized query on a shared
-`TypeckContext`, so phases pull their dependencies lazily and every fact is
-computed at most once. Cyclic definitions (a sort alias that refers to itself,
-say) are detected through the memoization table's lock state instead of running
-away into unbounded recursion.
-
-!!! question "Is the per-query memoization worth its complexity?"
-    Not a settled question. Several passes already walk the full AST to
-    perform other syntactic operations, so it is not yet clear how much the
-    per-query memoization saves over simply recomputing facts during one of
-    those existing traversals, versus what it costs in bookkeeping.
-
-The entry point is `DataSpecification::from_untyped`, which takes the untyped
-`merc_syntax` AST produced by the parser and runs the phases below.
-
-## Overview
-
-```
-UntypedDataSpecification            (merc_syntax AST)
-     │  sort layer: flatten, name resolution, alias checks, normalization
-     │  desugaring and operator lowering
-     │  signature (S, C, M) + well-typedness checks
-     │  sort resolution onto the interned lattice
-     │  constraint-based sort inference (per equation, memoized)
-     ▼
-Typed specification + sort assignment (ExprId → ResolvedSort)
-     │  lowering
-     ▼
-merc_data::Mcrl2DataSpecification   (aterm, fully typed)
-```
-
-The guiding idea is a **split representation**. During type checking, sorts are
-*not* aterms: they are interned indices into a standalone arena, so equality is
-a single integer comparison and typings live in compact side tables keyed by
-expression id. This keeps the checker independent of the aterm term pool —
-faster, testable in isolation, and free of garbage-collection concerns while a
-fixed-point search runs. Only the final lowering phase produces the maximally
-shared aterm representation that the rest of merc (`merc_sabre`,
-`merc_explore`) consumes.
+This page covers the core pipeline sketched in the [overview](index.md): the
+phases that turn an `UntypedDataSpecification` into a fully typed
+`merc_data::Mcrl2DataSpecification`.
 
 ## Phase 0 — The sort layer
 
@@ -107,7 +59,7 @@ for exactly the sorts that occur in the specification, computed as a transitive
 fixed point (using `Set(S)` pulls in `FSet(S)`, and so on).
 
 Finally, **sort resolution** maps every declaration-level sort expression onto
-the interned `ResolvedSort` lattice described next.
+the interned `ResolvedSort` lattice described [below](#the-sort-lattice).
 
 ## The system-defined specification
 
@@ -540,117 +492,3 @@ and downstream code is oblivious to the provenance.
 Lowering is invoked *after* `from_untyped` rather than inside it, so callers
 that only need the typed intermediate representation pay nothing for the aterm
 lowering.
-
-## Whole-process type checking
-
-`DataSpecification` only ever covers the data language. `ProcessSpecification`,
-built on top of it, type checks a full `UntypedProcessSpecification`:
-`ProcessSpecification::from_untyped` first type checks the embedded data
-specification exactly as `DataSpecification::from_untyped_with` does, then
-resolves every `act` argument sort and `glob`/`proc` parameter sort, and
-finally walks every `proc` body and `init` — action and process-instantiation
-arguments against their declared sorts (with overload resolution where a name
-is declared more than once), `sum`/`dist`-bound variables in scope for the
-subtree they bind, conditions against `Bool`, and time bounds/`dist` weights
-against `Real`. There is no lower-level entry point that type checks a process
-body without first running the reparse pass below — every path goes through
-`from_untyped`. Errors are reported as `ProcessError`, a superset of
-`WellTypedError`/`InferenceError`. Communication sort-compatibility is not
-checked yet.
-
-### The `.`/`+` grammar-ambiguity reparse pass
-
-mCRL2's concrete syntax overloads tokens between the process algebra and the
-data language — most notably `.` (process sequential composition vs. the data
-"at"/indexing operator) and `+` (process choice vs. data addition).
-Disambiguating the two readings needs semantic information a context-free
-grammar doesn't have, so `merc_syntax`'s grammar always takes the greedier
-data-expression reading: `act(args) . cond -> P <> Q` parses `act(args) . cond`
-as a single data expression rather than an action step followed by the real
-condition, and `cond1 -> P1 + cond2 -> P2` folds `cond2` into `P1`'s subtree
-instead of starting a sibling clause. In both cases the misparse always lands
-in the same place — a `Condition` node's `condition` field, the one `DataExpr`
-slot in the process grammar with no delimiter bounding how far it extends.
-
-Before type checking runs, `crate::process::reparse` walks the specification
-and rewrites every misparsed `Condition` back into the `Sequence`/`Choice`/
-`Action` shape it should have parsed as. This needs only the declared
-action/process *names* (arity and sort don't matter — even an overloaded name
-is unambiguous as a name; overload resolution itself still happens later,
-during the walk above), matching how mCRL2 itself resolves the same ambiguity
-before its own type checking runs. Because the pass runs unconditionally first,
-the process-body walk never needs error-driven recovery of its own — every
-`Condition` it sees is already correctly shaped.
-
-**Known limitation**: this reparse pass is a workaround for a deeper,
-pre-existing performance issue in `merc_syntax`'s parser itself — most likely
-catastrophic backtracking somewhere in the shared `DataExpr`/`ProcExpr`
-grammar — that can make `UntypedProcessSpecification::parse` never return on a
-pathological input, before reparse or type checking even get a chance to run.
-`crates/typecheck/tests/example_tests.rs` documents which specifications in
-the example corpus are affected. Fixing the parser itself is out of scope for
-`merc_typecheck`.
-
-## Span-keyed typing info (LSP support)
-
-Everything above tracks sorts internally by `ExprId`, an index assigned over
-the *lowered* expression tree — it can contain nodes with no counterpart in
-the original, unlowered syntax a caller parsed (the desugared `Id("+")` of
-`x + y`, for instance), so an external caller such as an editor integration
-cannot safely reconstruct it by re-walking the original tree after the fact.
-
-`DataSpecification::typing_info` (whole specification) and
-`DataSpecification::equation_typing_info` (one equation) instead expose a
-`TypingInfo`: one `TypedNode` per checked expression node — its source `Span`,
-its inferred sort (reconstructed as a `SortExpression` for display), and what
-its identifier resolved to (`ResolvedName`: a variable, a user `Constructor`/
-`Mapping` with its declaration span when it has one, a system-defined
-Appendix-B symbol, or a polymorphic builtin) — keyed by that `Span` rather than
-any internal id. `TypingInfo::at_offset` answers the hover/go-to-definition
-query directly: the most specific node whose span contains a byte offset,
-breaking span ties (a synthesized node inherits its surface expression's span,
-so e.g. `x + y`'s synthesized `Id("+")` and its `Application` node can share
-one span) in favor of the later, more specific node in generation order.
-`DataSpecification::typecheck_expression_with_typing` gives the same
-`TypingInfo` for a single standalone expression checked outside any
-specification. Note that a `TypedNode`'s reconstructed *sort* always carries
-`Span::default` — a resolved sort has no reliable source location of its own,
-since name resolution and alias normalization both discard or relocate a
-sort's original span — so this API can't answer sort go-to-definition from
-`TypedNode::sort` alone; use the `Def` sort's carried `DefId` instead.
-
-This is groundwork for LSP-style tooling (hover, go-to-definition) rather than
-a consumer of it — no editor integration exists in this repository yet.
-
-
-### Whole-process type checking
-
-`ProcessSpecification::from_untyped` extends the above to a full
-`UntypedProcessSpecification`: it type checks the data specification first
-(exactly as `DataSpecification::from_untyped_with` does), then every `act`
-argument sort, every `glob`/`proc` parameter sort, and every `proc` body and
-`init` — action and process-instantiation arguments against their declared
-sorts (with overload resolution when a name is declared more than once),
-`sum`/`dist`-bound variables in scope for the subtree they bind, conditions
-against `Bool`, and time bounds/`dist` weights against `Real`. Errors are
-`ProcessError`, a superset of `WellTypedError`/`InferenceError`.
-
-**mCRL2's `.`/`+` grammar ambiguity**: `merc_syntax`'s concrete grammar shares
-`.` (process sequential composition vs. the data "at"/indexing operator) and
-`+` (process choice vs. data addition) between the process algebra and the
-data language, and always parses the greedier data-expression reading:
-`act(args) . cond -> P <> Q` parses `act(args) . cond` as a single data
-expression rather than an action step followed by the real condition, and
-`cond1 -> P1 + cond2 -> P2` folds `cond2` into `P1`'s subtree rather than
-starting a sibling clause. Before type checking runs, `crate::process::reparse`
-rewrites these misparses back using only the declared action/process *names*
-— see its module doc comment for the exact shapes it recognizes and rewrites.
-This runs unconditionally inside `ProcessSpecification::from_untyped`; there
-is no lower-level entry point that skips it.
-
-**Known limitation**: this reparse pass works around a deeper, pre-existing
-performance issue in `merc_syntax`'s parser that can make
-`UntypedProcessSpecification::parse` itself never return on a pathological
-input, before any of the above even runs. `crates/typecheck/tests/example_tests.rs`
-documents which specifications in the example corpus are affected. Fixing the
-parser itself is out of scope for this crate.

@@ -16,7 +16,12 @@ nav = [
     "developer/testing.md",
     "developer/documentation.md",
     "developer/aterms.md",
-    "developer/typechecking.md",
+    { "Type Checking" = [
+      "developer/typechecking/index.md",
+      "developer/typechecking/data-specification.md",
+      "developer/typechecking/process-specification.md",
+      "developer/typechecking/lsp.md",
+    ] },
     "developer/set-automaton.md",
     "developer/machine-numbers.md",
     "developer/canonicalize-orbit.md",
