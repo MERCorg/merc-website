@@ -15,7 +15,7 @@ Various tools have been implemented so far:
  - `merc-rewrite` allows rewriting of Rewrite Engine Competition specifications ([REC](https://doi.org/10.1007/978-3-030-17502-3_6)) using [Sabre](https://arxiv.org/abs/2202.08687) (**S**et **A**utomaton **B**ased **RE**writing).
  - `merc-vpg` can be used to solve (variability) parity games in the [PGSolver](https://github.com/tcsprojects/pgsolver) `.pg` format, and a slightly extended variability parity game `.vpg` format. Furthermore, it can generate variability parity games for model checking modal mu-calculus on LTSs.
  - `merc-lps` can explore linear process specifications using explicit and symbolic exploration techniques using parallelism, it is located in the `tools/mcrl2` workspace.
- - `merc-pbes` can identify symmetries in parameterised boolean equation systems [PBES](https://doi.org/10.1016%2Fj.tcs.2005.06.016) and explore PBES explicitly, located in the `tools/mcrl2` workspace.
+ - `merc-pbes` can solve parameterised boolean equation systems [PBES](https://doi.org/10.1016%2Fj.tcs.2005.06.016) both explicit and symbolically using parallelism, located in the `tools/mcrl2` workspace. Furthermore, it can  identify parameter symmetries to speed up exploration.
  - `merc-ltsgraph` is a GUI tool to visualize LTSs, located in the `tools/gui` workspace.
  - `merc-sym` can explore a symbolic state space given in Sylvan's binary `.ldd` format, or the mCRL2 symbolic binary `.sym` format. It can also compute orderings using `kahypar` using the MINCE algorithm, which also requires the `kahypar` tool to be available.
 
