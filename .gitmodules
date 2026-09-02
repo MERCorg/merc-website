@@ -1,3 +1,4 @@
 [submodule "plugins/zensical-latex-math"]
 	path = plugins/zensical-latex-math
 	url = https://github.com/MERCorg/zensical-latex-math
+	branch = main
