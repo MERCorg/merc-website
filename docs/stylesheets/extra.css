@@ -45,16 +45,3 @@
   background: #d4b769;
   color: #333333;
 }
-
-/*
- * Ensure that fenced match blocks use the full page width.
- */
-.latex-math-block {
-  overflow-x: auto;
-}
-
-.latex-math-block svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}

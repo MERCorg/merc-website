@@ -117,9 +117,7 @@ transversal ever being materialized:
       \State $\mathit{current} \gets \mathit{next}$
       \State $\mathit{level} \gets \mathit{chain}.\Call{LevelAfter}{\mathit{level}}$
     \Else
-      \Statex \Comment{$j$ is fixed by the stabilizer reached so far: no
-        transversal to search, but candidates that only tied earlier can
-        still disagree on $j$ --- filter on it directly instead of skipping it}
+      \Statex \Comment{$j$ is fixed by the stabilizer reached so far}
       \State $\mathit{best} \gets \infty; \quad \mathit{next} \gets \emptyset$
       \ForAll{$\mathit{prefix} \in \mathit{current}$}
         \State $\mathit{value} \gets \mathit{params}[\mathit{prefix}[j]]$

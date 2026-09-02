@@ -17,11 +17,10 @@ nav = [
     "developer/documentation.md",
     "developer/canonicalize-orbit.md",
     { "Rewriting" = [
-      "developer/rewriting/aterm.md",
+      "developer/rewriting/aterms.md",
       "developer/rewriting/set-automaton.md",
       "developer/rewriting/machine-numbers.md",
     ] },
-    "developer/aterms.md",
     { "Type Checking" = [
       "developer/typechecking/index.md",
       "developer/typechecking/data-specification.md",
