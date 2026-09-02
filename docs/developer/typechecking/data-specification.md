@@ -4,6 +4,18 @@ This page covers the core pipeline sketched in the [overview](index.md): the
 phases that turn an `UntypedDataSpecification` into a fully typed
 `merc_data::Mcrl2DataSpecification`.
 
+## Phase −1 — Variable go-to-definition (a syntactic pre-pass)
+
+Before any of the phases below run, `resolve_data_specification_variables`
+rewrites every `var`-block equation variable occurrence
+(`condition`/`lhs`/`rhs`) from a plain `DataExprKind::Id(name)` into
+`DataExprKind::Resolved(name, declaration_span)`, tying it to its own `var`
+declaration's span. Type checking treats `Resolved` exactly like `Id` — this
+pass only carries a declaration span alongside the existing by-name lookup, it
+changes no resolution outcome — so this step is purely additive groundwork for
+go-to-definition; see [LSP support](lsp.md) for the full picture, including the
+matching passes over a process/PBES body.
+
 ## Phase 0 — The sort layer
 
 The first phase establishes what sorts exist and rejects malformed sort

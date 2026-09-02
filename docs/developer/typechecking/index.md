@@ -77,7 +77,7 @@ shared aterm representation that the rest of merc (`merc_sabre`,
 
 ## Contents
 
-This part of the documentation is split into three pages:
+This part of the documentation is split into five pages:
 
  - **[Data Specification Type Checking](data-specification.md)** — the core
    pipeline sketched above: the sort layer, desugaring, the signature and the
@@ -85,6 +85,13 @@ This part of the documentation is split into three pages:
    inference, and lowering back to aterms.
  - **[Process Specification Type Checking](process-specification.md)** — how
    `ProcessSpecification` builds on the data checker, including the
-   `.`/`+` grammar-ambiguity reparse pass it runs first.
+   `.`/`+`/`||` grammar-ambiguity reparse pass it runs first.
+ - **[PBES Specification Type Checking](pbes-specification.md)** — how
+   `PbesSpecification` builds on the data checker to resolve
+   propositional-variable equations, `PropVarInst`s, and quantifier scoping.
+ - **[PRES Specification Type Checking](pres-specification.md)** — how
+   `PresSpecification` reuses the same shape for a parameterised *real*
+   equation system, checking `val(...)` expressions against `Real` instead of
+   `Bool`.
  - **[Span-Keyed Typing Info (LSP Support)](lsp.md)** — the `TypingInfo` API
    that exposes typing facts by source `Span` for editor tooling.

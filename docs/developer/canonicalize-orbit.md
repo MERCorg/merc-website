@@ -1,19 +1,25 @@
 ```math_preamble
 
-\usepackage[paperwidth=60cm,paperheight=60cm,margin=5mm]{geometry}
+\usepackage[paperwidth=40cm,paperheight=25cm,margin=5mm]{geometry}
 \usepackage{algpseudocode}
+% Default \Comment right-justifies with \hfill, which — combined with a wide
+% page to fit long comments — leaves a huge blank gap between code and
+% comment. Keep comments inline instead; see canonicalize-orbit.md.
+\algrenewcommand{\algorithmiccomment}[1]{$\triangleright$ #1}
 ```
 # Symmetry Quotienting
 
-`merc_pbes` quotients the state space of a PBES by a symmetry group found on
-its symmetry detection graph.
+`merc_pbes` quotients the state space of a PBES by a symmetry group found on its
+symmetry detection graph using base and strong generating set (BSGS). The
+quotienting process then uses this BSGS to efficiently canonicalize orbits and
+Below is an exposition of the algorithm
+used.
 
-## Stabilizer chains, briefly
+## Stabilizer chains
 
 A group $G \leq \mathrm{per}([n])$ acting on the parameter block gives a
 descending chain of stabilizers $G = G_0 \geq G_1 \geq G_2 \geq \dots$ along a
-*base* — a sequence of points $\beta_0, \beta_1, \dots$ — where each $G_i =
-\{\, \alpha \in G_{i-1} \mid \alpha(\beta_i) = \beta_i \,\}$ is the stabilizer
+*base* — a sequence of points $\beta_0, \beta_1, \dots$ — where each $G_i = \{\, \alpha \in G_{i-1} \mid \alpha(\beta_i) = \beta_i \,\}$ is the stabilizer
 of $\beta_i$ within the previous group in the chain.
 
 Each $G_i$ acts on the previous one's coset space via a *transversal* $U_i$:
@@ -25,7 +31,7 @@ gives every $\sigma \in G$ a unique factorisation $\sigma = u_1 \circ \dots
 $u_1, \dots, u_i$ already fixes $\sigma(\beta_j)$ for every $j \leq i$, no
 matter what the remaining factors turn out to be.
 
-## The report's algorithm: one level per position
+## Naive algorithm
 
 §5.1 of the report picks the base $\beta_i = i$ for every position — the
 *full* base $0, 1, \dots, n-1$. Every position gets its own level, whether or
@@ -61,7 +67,7 @@ The load-bearing detail, easy to read past: the inner loop runs — and
 A position the group fixes still gets compared, it just never branches. That
 turns out to matter more than it looks like it should.
 
-## Why merc's chain differs: a compressed base
+## Compressed base and Schreier–Sims levels
 
 Building a level for every one of the $n$ positions is wasteful when the
 group's support is small relative to $n$ — a symmetry that only permutes a
@@ -96,7 +102,7 @@ transversal ever being materialized:
   \State $\mathit{level} \gets \mathit{chain}.\Call{FirstLevel}{}$
   \For{$j \gets 0$ \textbf{to} $n-1$}
     \If{$\mathit{level}$ exists \textbf{and} $\mathit{level}.\mathit{base\_point} = j$}
-      \Comment{a real base point --- search its transversal}
+      \Statex \Comment{a real base point --- search its transversal}
       \State $\mathit{best} \gets \infty; \quad \mathit{next} \gets \emptyset$
       \ForAll{$\mathit{prefix} \in \mathit{current}$}
         \ForAll{$u \in \mathit{level}.\mathit{transversal}$}
@@ -111,7 +117,9 @@ transversal ever being materialized:
       \State $\mathit{current} \gets \mathit{next}$
       \State $\mathit{level} \gets \mathit{chain}.\Call{LevelAfter}{\mathit{level}}$
     \Else
-      \Comment{$j$ is fixed by the stabilizer reached so far: no transversal to search, but candidates that only tied earlier can still disagree on $j$ --- filter on it directly instead of skipping it}
+      \Statex \Comment{$j$ is fixed by the stabilizer reached so far: no
+        transversal to search, but candidates that only tied earlier can
+        still disagree on $j$ --- filter on it directly instead of skipping it}
       \State $\mathit{best} \gets \infty; \quad \mathit{next} \gets \emptyset$
       \ForAll{$\mathit{prefix} \in \mathit{current}$}
         \State $\mathit{value} \gets \mathit{params}[\mathit{prefix}[j]]$
