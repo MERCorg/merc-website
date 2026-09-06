@@ -20,6 +20,9 @@ merc-pbes solve --reorder mince <file.pbes> --kahypar-path <path-to-kahypar> --k
 ```
 
 The `path-to-kahypar` will be `<repo>/build/kahypar/applications/` when built
-from source. The resulting order will be applied immediately, but also printed
+Passing the ini file is only necessary in a developement build, and it should point to the location of the ini file, which is
+`merc/crates/symbolic/data/kahypar.ini`.
+
+The resulting order will be applied immediately, but also printed
 to standard output, and can be passed directly using the `--reorder="<order>"`
 option.
