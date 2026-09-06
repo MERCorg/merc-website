@@ -1,5 +1,8 @@
 # Machine Numbers
 
+!!! Warning
+    This documentation should be rewritten to be more comprehensive, mostly focussing on the theory and not so much the code mappings.
+
 mCRL2's numeric sorts `Pos`, `Nat`, `Int` and `Real` are formally specified as
 *recursive binary* numbers (Appendix B of the mCRL2 manual): a `Pos` is a chain
 of bits, `@c1` or `@cDub(b, p)` denoting $2p+b$, built and consumed one bit at a
@@ -313,102 +316,6 @@ This is what actually establishes correctness in practice: a structural
 argument for *why* each function should be right, checked against thousands of
 random cases through an independent implementation of the infinite-precision
 arithmetic the sort denotes.
-
-## What a machine-checked proof would look like
-
-!!! note "Speculative"
-    None of this has been done. `merc` has no Lean development, and the case
-    for these operations today is the structural argument above plus the tests.
-    What follows is a sketch of the obligation a formal proof would have to
-    discharge, and of the pieces that already exist to build it from.
-
-These operations are an unusually tractable target for formalisation: a few
-dozen total functions on `u64`, no allocation, no state, no concurrency, each
-one standing in for a single arithmetic identity. And the shape of the proof is
-the standard one for a data refinement — a *representation function* plus a
-family of commuting squares.
-
-**The obligation.** Fix an abstraction map $\alpha$ from the concrete
-representation to the value it denotes. For a single word, $\alpha_w$ is
-`UInt64.toNat`, landing in `ℕ` — or in `ZMod (2^64)`, if one prefers to state
-the wrapping operations as a ring homomorphism rather than as a `% 2^64`
-identity. For a digit chain, $\alpha$ is the base-$2^{64}$ fold: $\alpha$ of a
-one-digit chain is $\alpha_w$ of its digit, and $\alpha$ of
-`@concat_digit(p, w)` is $2^{64}\alpha(p) + \alpha_w(w)$. The obligation for a
-native operation $f$ standing in for an abstract $F$ is then the commuting
-square $\alpha(f(x, y)) = F(\alpha(x), \alpha(y))$, modulo whatever truncation
-that operation's contract permits. Two concrete instances:
-
-- *Addition and its carry are one theorem, not two.* Writing $s$ for the exact
-  sum $\alpha_w(n_1) + \alpha_w(n_2)$ taken in `ℕ`, the statement to prove is
-  $s = c \cdot 2^{64} + d$, where $d$ is the word `add_word` returns and $c$ is
-  $1$ or $0$ according to `add_overflow_word`. That single equation is exactly
-  what the `Pos` addition equation consumes when it decides whether to grow a
-  digit, so proving it discharges the carry argument made informally above.
-- *The fold itself.* Justifying the chain means showing it is ordinary
-  positional notation. Mathlib's `Nat.ofDigits` is the same fold modulo digit
-  order — `Nat.digits`/`Nat.ofDigits` are little-endian, least significant
-  first, whereas a chain is written most significant first — so a
-  chain-to-`List` function composed with `List.reverse` should let
-  `Nat.ofDigits_digits : Nat.ofDigits b (Nat.digits b n) = n` do the round-trip
-  work instead of re-deriving it.
-
-**What it would build on.** Lean core's `BitVec` is close to a direct model of
-the single-word layer: `UInt64` is a structure wrapping a `BitVec 64`, and the
-`toNat` lemmas are stated in exactly the wrapping form these functions need —
-`BitVec.toNat_add : (x + y).toNat = (x.toNat + y.toNat) % 2^w`, and similarly
-for multiplication and subtraction. Core also carries the overflow predicates
-`BitVec.uaddOverflow`, `BitVec.usubOverflow` and `BitVec.umulOverflow` with
-conditional lemmas along the lines of `BitVec.toNat_add_of_not_uaddOverflow`
-that drop the modulus when no overflow occurs — the `add_word` /
-`add_overflow_word` pairing, already spelled out. `Nat.sqrt` is in core, with
-its defining bounds available in mathlib as `Nat.sqrt_le'` and
-`Nat.lt_succ_sqrt'` (stated with `^2`), which is literally the property the
-randomised root tests sample. The division-algorithm identity
-`Nat.div_add_mod : n * (m / n) + m % n = m` is what the multi-word div/mod
-decompositions and the `times_word`/`times_overflow_word` product split reduce
-to. `@monus_word` needs no machinery at all, since `Nat` subtraction is already
-truncated; mathlib's general treatment of that is `tsub` with the `OrderedSub`
-class, for the lemmas in their general form.
-
-**Where Lean has it easier than Rust.** The wide operations invert the usual
-difficulty. `div_triple_doubleword` and the triple/quadruple-word roots need
-`num::BigUint` in Rust and `boost::multiprecision::uint256_t` in C++ purely
-because 192- and 256-bit integers are not native types. In Lean, `Nat` is
-arbitrary precision by construction, so those become ordinary `Nat` lemmas —
-the specification of `div_triple_doubleword` is just a division identity about
-$2^{128}n_1 + 2^{64}n_2 + n_3$, with no wide type to introduce and no separate
-obligation to show the wide type is itself correct.
-
-**What it would buy.** A theorem `∀ n1 n2 : UInt64, …` closes the quantifier
-that property-based tests can only sample. The distinction is not academic
-here: the C++ `add_with_carry_overflow_word` discussed above differs from the
-checked version on exactly the pairs with $n_2 = 2^{64}-1$ — one $2^{64}$-th of
-the input space, which a uniform random test will essentially never draw. Ten
-thousand samples is good evidence about the typical case and almost none about
-a failure set that thin.
-
-**What it would not buy.** A Lean proof is a proof about a Lean model. Unless
-that model is tied to the deployed code, `machine_word.rs` is certified only as
-far as the transcription is faithful — and transcription is exactly where such
-errors hide. Tooling exists to close the gap from the Rust side: Aeneas,
-together with Charon, translates a safe subset of Rust through an MIR-derived
-intermediate language into a pure functional Lean 4 model, so the object of the
-proof is derived from the source rather than written out by hand. Whether all
-of `machine_word.rs` — `num::BigUint` included — falls inside that subset is an
-open question; the single-word half of it, plain `u64` arithmetic with no loops
-and no allocation, plainly does.
-
-Such a proof would complement, not replace, the Kani proofs `merc` already
-runs. Kani model-checks the actual Rust through MIR, which is what `merc` uses
-for unsafe-code invariants and for small total functions — `merc_number` itself
-carries `#[kani::proof]` harnesses for `bits_for_value` (over every `usize`)
-and for the power-of-two helpers (over every `u16`). Its reach stops where
-bounded model checking stops: the wide identities involve heap-allocated
-arbitrary-precision values and loops bounded only by the operand size, which is
-not what a BMC tool is for, whereas `Nat` states them directly. The natural
-division of labour is Kani on the code as compiled, and Lean on the arithmetic
-that code is supposed to implement.
 
 ## Native evaluation in the rewriter
 

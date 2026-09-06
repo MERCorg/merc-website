@@ -9,12 +9,6 @@ construction is based on
 > Matches in a Term*. In: Theoretical Aspects of Computing – ICTAC 2021.
 > [DOI](https://doi.org/10.1007/978-3-030-85315-0_5)
 
-This page describes the moving parts of the construction —
-[`SetAutomaton::new`](https://github.com/MERCorg/merc/blob/main/crates/sabre/src/set_automaton/automaton.rs) —
-and a correctness fix to it, made while wiring up
-[`NumberEncoding::MachineWord`](machine-numbers.md), that is worth
-understanding before touching this code again.
-
 ## Goals, obligations, announcements
 
 Every state of the automaton carries a set of `MatchGoal`s — one per rewrite
@@ -103,6 +97,9 @@ after being exposed by the machine-word work.
 
 ## The partition-merge bug
 
+!!! Warning
+    I don't quite understand this bug, so I should add a small example.
+
 Until this fix, the fresh-subtree decision reused the same
 announcement-position comparison `partition` uses internally — testing a
 fresh position against the deduplicated announcement positions of each
@@ -158,32 +155,3 @@ of `partition`'s groups moved from announcement positions to obligation
 positions. The fix trades a documented amount of precision for guaranteed
 termination: some fresh subtrees that could, in principle, have safely
 shared a destination now start their own instead.
-
-## Current status: `SabreRewriter` and `MachineWord`
-
-Fixing the merge defect is a genuine correctness fix, but it is **not** the
-same thing as making `SabreRewriter` practical on
-`NumberEncoding::MachineWord` specifications. Re-running a minimal
-`SabreRewriter` repro (`1 + 1` under `Nat`, `MachineWord` encoding) after the
-fix shows construction no longer collapses into the single
-ever-absorbing-partition symptom described above — but it still hadn't
-reached a fixpoint after 45 seconds, with state and transition counts still
-climbing (past 1,800 states and 25,000 transitions) for that two-token
-expression. That looks like genuine combinatorial blow-up from the recursive
-digit-chain pattern shape, a separate, still-open concern from the merge bug
-this page describes.
-
-!!! note "Use `InnermostRewriter` for `MachineWord`"
-    Until that blow-up is addressed, prefer `InnermostRewriter` (or
-    `NaiveRewriter`) over `SabreRewriter` when selecting
-    `NumberEncoding::MachineWord` — see the note in
-    [Machine Numbers](machine-numbers.md#native-evaluation-in-the-rewriter).
-
-## References
-
-- [`set_automaton/automaton.rs`](https://github.com/MERCorg/merc/blob/main/crates/sabre/src/set_automaton/automaton.rs),
-  [`set_automaton/match_goal.rs`](https://github.com/MERCorg/merc/blob/main/crates/sabre/src/set_automaton/match_goal.rs)
-- Erkens, R., Groote, J.F. (2021). *A Set Automaton to Locate All Pattern
-  Matches in a Term*. [DOI](https://doi.org/10.1007/978-3-030-85315-0_5)
-- Bouwman, M., Erkens, R. (2022). *Term Rewriting Based On Set Automaton
-  Matching*. [arXiv](https://arxiv.org/abs/2202.08687)
