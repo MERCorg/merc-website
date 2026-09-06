@@ -10,6 +10,13 @@ inspired by the `C++` ATerm library in the [mCRL2](https://www.mcrl2.org/)
 toolset. Although the `annotated` part is no longer relevant, the name has
 stuck.
 
+## Function symbols
+
+Function symbols are the building blocks of terms. Each function symbol has a
+name and an arity (the number of arguments it takes). In the ATerm library,
+function symbols are represented by the `Symbol` struct, which stores the name
+and arity, and provides methods for comparison and hashing.
+
 ## Maximal Sharing
 
 A term $f(t_1, \ldots, t_n)$ consists of a function symbol $f$ and subterms
@@ -212,19 +219,7 @@ arguments is a valid term. Higher-level crates build *typed* wrappers on top,
 e.g. `merc_data::DataExpression` and `merc_data::DataFunctionSymbol`, that
 only accept terms with a particular shape, and add methods specific to that
 shape (`DataFunctionSymbol::name()`, `DataFunctionSymbol::sort()`, ...). Every
-such wrapper repeats the same owned/borrowed split described above: a struct
-holding a `term: ATerm`, a `..Ref<'a>` counterpart holding an `ATermRef<'a>`,
-`copy()`/`protect()` between them, `Deref`/`Into<ATerm>` back down to the raw
-term, and a `Term` implementation. Writing all of that by hand for every
-wrapper — `merc_data` alone defines nine of them for data expressions
-(`DataExpression`, `DataFunctionSymbol`, `DataVariable`, `DataApplication`,
-`MachineNumber`, `DataEquation`, `DataAbstraction`, `DataWhrDecl`,
-`DataWhereClause`) plus five more for sort expressions (`SortExpression`,
-`BasicSort`, `SortArrow`, `SortCons`, `SortAlias`), and `merc_lts` and
-`merc_aterm` itself add a handful more (`MCRL2TimedMultiAction`,
-`MCRL2Action`, `MCRL2ActionLabel`, `ATermInt`, `ATermString`) — is what the
-`merc_macros` crate generates instead, via `#[merc_derive_terms]` and
-`#[merc_term]`.
+such wrapper repeats the same owned/borrowed split described above.
 
 ### Declaring a wrapper
 
