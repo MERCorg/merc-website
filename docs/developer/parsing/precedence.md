@@ -1,43 +1,24 @@
 # Precedence: Pest (merc) vs. dparser (mCRL2)
 
-!!! Warning
-    Rewrite this to show the difference between mCRL2 and merc, and also to explain the deep priority issue in more detail.
+merc and mCRL2 implement the same documented `DataExpr` precedence table.
+In particular, quantifiers and lambdas have low precedence, while operators
+such as negation, unary minus, and cardinality have high precedence. They
+usually therefore assign the same grouping to ordinary expressions.
 
-`merc_syntax` and mCRL2 both parse the same documented operator-precedence
-table for `DataExpr` — the one from the mCRL2 language reference, with
-`forall`/`exists`/`lambda` at the loosest level (1) and function
-application/negation/unary-minus/`#` at the tightest (12-14, depending on
-context). Both grammars encode the *same numbers*:
+- merc first recognizes an expression as a sequence of operands and
+  operators, then applies a Pratt parser to build the precedence tree. Each
+  prefix operator parses its operand according to that operator's own
+  binding power.
+- mCRL2 uses a grammar parser with precedence and associativity annotations
+  on productions. It can consider multiple valid parse trees and select one
+  using those annotations.
 
-- merc: [`crates/syntax/mcrl2_grammar.pest`](https://github.com/MERCorg/merc/blob/main/crates/syntax/mcrl2_grammar.pest)
-  parses `DataExpr` as a flat, unprioritized token stream —
-  `DataExprPrefix* ~ DataExprPrimary ~ DataExprPostfix* ~ (DataExprInfix ~
-  DataExprPrefix* ~ DataExprPrimary ~ DataExprPostfix*)*` — and the actual
-  precedence lives entirely in a second pass:
-  [`crates/syntax/src/precedence.rs`](https://github.com/MERCorg/merc/blob/main/crates/syntax/src/precedence.rs)'s
-  `DATAEXPR_PRATT_PARSER`, a `pest::pratt_parser::PrattParser` built with one
-  `.op(...)` call per precedence level, lowest first (`forall`/`exists`/
-  `lambda`, then `=>`, `||`, `&&`, ... , up to `*`/`.`/`!`/unary `-`/`#`
-  sharing the tightest level).
-- mCRL2: [`libraries/core/source/mcrl2_syntax.g`](https://github.com/mCRL2org/mCRL2/blob/master/libraries/core/source/mcrl2_syntax.g)
-  is the actual grammar dparser compiles (via `make_dparser`, see
-  `DPARSER_SOURCES` in `libraries/core/CMakeLists.txt` — this is not a
-  documentation-only file). Every alternative in the `DataExpr` production
-  carries its own priority as a trailing annotation (dparser writes these
-  with a leading dollar-sign sigil), e.g. `'exists' VarsDeclList '.'
-  DataExpr` is annotated `right 1` and `'!' DataExpr` is annotated `right
-  12`, with the binary operators' priorities set on the operator token
-  itself via a `binary_op_left`/`binary_op_right` annotation.
+For example, both parse `exists d: Bool . d && q` as `exists d: Bool. (d &&
+q)`: the low-precedence quantifier is the outermost expression, and its body
+includes the conjunction. The difference discussed below appears only in
+more deeply nested combinations of prefix and infix operators.
 
-Since the numbers agree, simple chains parse identically. Both give `exists
-d: Bool. (d && q)` for a bare `exists d: Bool . d && q` — confirmed by
-parsing it with each toolchain directly (`DataExpr::parse` in `merc_syntax`;
-`mcrl2::data::parse_data_expression` in mCRL2's `libmcrl2_data`). The
-existential is the lowest-precedence operator present, so it becomes the
-outermost node and its scope extends through the `&&`, exactly as the table
-prescribes.
-
-## Where they diverge: a negated quantifier followed by a lower-precedence operator
+## Divergence
 
 They disagree the moment a tighter-binding prefix operator (`!`) is placed
 directly in front of a looser-binding one (`exists`/`forall`), with an
@@ -56,7 +37,7 @@ they share with `d`) under genuinely different scopes, so a specification
 that relies on the implicit grouping means something different — or fails to
 type check — depending on which tool reads it.
 
-### merc's reading, traced through the Pratt parser
+### merc's Pratt parser
 
 Pest's `PrattParser::expr` is a standard operator-precedence-climbing
 algorithm (`nud`/`led`, see
@@ -98,9 +79,7 @@ dparser is a GLR (generalized LR) parser: on genuinely ambiguous input it
 builds a shared packed parse forest of every valid derivation and then
 disambiguates using the priority/associativity annotations — a different
 mechanism from a single bounded recursive descent. We verified the actual
-behavior directly against mCRL2's built `libmcrl2_data`/`libmcrl2_core`
-(`mcrl2::data::parse_data_expression`, which parses and type-checks in one
-step), rather than reasoning from the grammar file alone:
+behavior directly against mCRL2:
 
 | expression | mCRL2 parses it as |
 |---|---|
@@ -112,37 +91,24 @@ step), rather than reasoning from the grammar file alone:
 | `!!exists d: Bool . d && q` | `(!!(exists d: Bool. d)) && q` |
 | `!forall d: Bool . d && q` | `(!(forall d: Bool. d)) && q` |
 
-The truncation happens purely from `!` sitting directly in front of the
-quantifier — it reproduces at any chain depth (`!!`), for `forall` as well as
-`exists`, and for every infix operator we tried regardless of how that
-operator's own priority compares to `!`'s (`=>` at 2 and `==` at 5 are both
-excluded, even though `==` numerically outranks `!` itself). The one thing
-that changes the outcome is parentheses: `!(exists d: Bool . d && q)` and
-`(!exists d: Bool . d) && q` both parse exactly as written, confirming the
-ambiguity is real and both readings are individually valid mCRL2 — dparser
-just always resolves the unparenthesized form the second way.
+The pattern is consistent with the following model: for a span with more than
+one valid derivation, dparser picks the derivation whose *outermost* connective
+has the lowest priority number among the outermost connectives actually
+competing for that position — not "each prefix operator bounds its own reach
+independently," which is what the Pratt parser does. For the bare `exists d. d
+&& q`, the competing roots are `exists` (1) and `&&` (4); `exists` wins (1 < 4)
+and swallows the `&&`. For `!exists d. d && q`, the competing roots are `!` (12,
+wrapping the maximal exists-through-`&&` reading) and `&&` (4, with a minimal
+`!(exists d. d)` as its left operand); `&&` wins (4 < 12), which forces the
+`!`/`exists` pair into the smallest shape compatible with that — `d` alone.
+`exists`'s own very low priority (1) never enters the comparison, because in the
+winning derivation `exists` isn't a candidate root at all; it's nested two
+levels down.
 
-The pattern is consistent with (though we did not trace dparser's C
-implementation in `3rd-party/dparser/gram.c` to confirm) the following
-model: for a span with more than one valid derivation, dparser picks the
-derivation whose *outermost* connective has the lowest priority number among
-the outermost connectives actually competing for that position — not "each
-prefix operator bounds its own reach independently," which is what the
-Pratt parser does. For the bare `exists d. d && q`, the competing roots are
-`exists` (1) and `&&` (4); `exists` wins (1 < 4) and swallows the `&&`. For
-`!exists d. d && q`, the competing roots are `!` (12, wrapping the maximal
-exists-through-`&&` reading) and `&&` (4, with a minimal `!(exists d. d)` as
-its left operand); `&&` wins (4 < 12), which forces the `!`/`exists` pair
-into the smallest shape compatible with that — `d` alone. `exists`'s own very
-low priority (1) never enters the comparison, because in the winning
-derivation `exists` isn't a candidate root at all; it's nested two levels
-down.
+## Literature
 
-## What the parsing literature says
-
-This isn't a quirk unique to mCRL2's grammar — it's a named, well-studied
-phenomenon. Parsing-technology research distinguishes two classes of
-priority/associativity ambiguity:
+Parsing-technology research distinguishes two classes of priority/associativity
+ambiguity:
 
 - A **shallow conflict** is one a disambiguation filter can resolve by
   looking only at a parse node and its direct children — the ordinary case
@@ -160,16 +126,16 @@ Context-free Grammars"](https://homepages.cwi.nl/~paulk/publications/ASMICS94.ps
 1994) — the semantics SDF2 implements, and the same general shape as
 dparser's per-production `right N`/`left N`/`binary_op_*` priority and
 associativity annotations: declare a priority on each production, then prune
-parse-tree patterns that would violate it. Aasa (["Precedences in
-Specifications and Implementations of Programming
-Languages"](https://doi.org/10.1016/0304-3975(95)90680-J),
-*Theoretical Computer Science* 142(1), 1995) and later Afroozeh, van den
-Brand, Johnstone, Scott & Vinju (["Safe Specification of Operator Precedence
-Rules"](https://doi.org/10.1007/978-3-319-02654-1_8), SLE 2013) showed that
-filters of this kind — checking only a direct parent-child relationship —
-are provably unable to resolve deep conflicts: the very case where a
-low-priority prefix operator (`exists`) is separated from the higher-priority
-operator it should or shouldn't absorb (`&&`) by an intervening node (`!`).
+parse-tree patterns that would violate it. 
+
+Afroozeh, van den Brand, Johnstone, Scott & Vinju (["Safe Specification of
+Operator Precedence Rules"](https://doi.org/10.1007/978-3-319-02654-1_8), SLE
+2013) showed that filters of this kind — checking only a direct parent-child
+relationship — are provably unable to resolve deep conflicts: the very case
+where a low-priority prefix operator (`exists`) is separated from the
+higher-priority operator it should or shouldn't absorb (`&&`) by an intervening
+node (`!`).
+
 Amorim, Steindorfer & Visser (["Towards Zero-Overhead Disambiguation of Deep
 Priority Conflicts"](https://arxiv.org/abs/1803.10215), *The Art, Science,
 and Engineering of Programming* 2(3), 2018, article 13) name and classify the
@@ -182,7 +148,11 @@ of the conditional expression extends as far as possible," i.e. the
 low-priority prefix's body swallows the high-priority infix — is the
 supposedly correct one; the other reading, where the prefix's body gets
 truncated and the infix escapes outward, is the one every disambiguation
-technique they survey is trying to rule out. That "correct" reading is
+technique they survey is trying to rule out. 
+
+## Resolution
+
+That "correct" reading is
 precisely merc's `!(exists d: D . (X && Y))` — and the "wrong" one their
 paper is written to rule out is precisely what mCRL2's dparser produces here.
 Their own related-work section singles out exactly the mechanism dparser
@@ -213,36 +183,3 @@ That's why merc lands on the literature's "correct" reading without any
 special-casing for this shape — it's a parser architecture that the deep/
 shallow conflict distinction doesn't apply to, not a grammar that happens to
 get this one case right.
-
-## Which is "more correct"?
-
-Neither grammar is wrong relative to the mCRL2 language reference *table* —
-it says each operator's precedence relative to the others, but is silent on
-how a chain of *prefix* operators with different precedences should compose.
-But the wider parsing literature is not silent on it: the shape here is a
-textbook "operator-style" deep priority conflict, the community's own stated
-"correct" reading for it is merc's (the low-precedence prefix swallows the
-higher-precedence infix, regardless of what wraps it), and mCRL2's answer is
-the specific failure mode that ~25 years of work on declarative
-disambiguation (Klint & Visser 1994 through Amorim et al. 2018) documents for
-parsers that resolve priority with a flat, un-rewritten, per-production table
-— which is exactly what `mcrl2_syntax.g`'s `right N` annotations are. Read
-that way, this isn't "two independently reasonable readings that happen to
-disagree" so much as "merc's Pratt parser is architecturally immune to a bug
-class that mCRL2's chosen disambiguation mechanism is documented to be
-vulnerable to, and here it's vulnerable."
-
-**Recommendation:** keep merc's Pratt-parser reading. It's simpler,
-predictable, matches what the documented precedence table gives when applied
-compositionally, and — per the literature above — is the reading a properly
-disambiguated grammar is supposed to produce for this exact shape. merc is a
-compatible reimplementation of mCRL2's *language*, not a bug-for-bug clone of
-dparser's disambiguation internals, and replicating this specific quirk
-(special-casing "prefix operator directly wrapping a quantifier" to truncate
-it) would mean deliberately reintroducing a documented parser bug class for
-the sake of matching a parser that itself doesn't implement the fix. If exact
-round-tripping through both toolchains ever matters for a spec that hits this
-shape, the practical fix is the same one that resolves the ambiguity for a
-human reader: parenthesize the quantifier explicitly (`!(exists d: D . X) &&
-Y` or `!(exists d: D . X && Y)`, whichever was meant) rather than relying on
-either parser's implicit reading.

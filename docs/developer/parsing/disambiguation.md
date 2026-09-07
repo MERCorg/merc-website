@@ -1,10 +1,10 @@
 ```math_preamble
 
 \usepackage{tikz}
-\usetikzlibrary{babel,arrows.meta,positioning}
+\usetikzlibrary{babel,arrows.meta,positioning,calc}
 \usepackage{tikz-qtree}
 ```
-# The `.`/`+`/`||` Grammar-Ambiguity Disambiguation Pass
+# Grammar-Ambiguity
 
 mCRL2's concrete syntax overloads tokens between the process algebra and the
 data language — most notably `.` (process sequential composition vs. the data
@@ -36,18 +36,18 @@ reading the grammar commits to:
   level distance=1.2cm,
   sibling distance=0.9cm,
 }
-\begin{scope}
+\begin{scope}[local bounding box=parsedTreeA]
 \Tree [.\textbf{Condition}
         [.\texttt{cond} [.\textsc{At} \texttt{a(1)} \textsc{true} ] ]
         [.\texttt{then} \texttt{delta} ] ]
-\node[font=\footnotesize, below=0.5cm of current bounding box.south] {as parsed};
 \end{scope}
-\begin{scope}[xshift=5.2cm]
+\node[font=\footnotesize, below=0.5cm of parsedTreeA.south] {as parsed};
+\begin{scope}[shift={($(parsedTreeA.east)+(1.5cm,0)$)}, local bounding box=recoveredTreeA]
 \Tree [.\textsc{Sequence}
         \texttt{a(1)}
         [.\textbf{Condition} [.\texttt{cond} \textsc{true} ] [.\texttt{then} \texttt{delta} ] ] ]
-\node[font=\footnotesize, below=0.5cm of current bounding box.south] {as recovered};
 \end{scope}
+\node[font=\footnotesize, below=0.5cm of recoveredTreeA.south] {as recovered};
 \end{tikzpicture}
 ```
 
@@ -73,20 +73,20 @@ addition) as the two `Condition`s the concrete syntax intended:
   level distance=1.2cm,
   sibling distance=0.9cm,
 }
-\begin{scope}
+\begin{scope}[local bounding box=parsedTreeB]
 \Tree [.\textbf{Condition}
         [.\texttt{cond} \textsc{true} ]
         [.\texttt{then} [.\textbf{Condition}
                            [.\texttt{cond} [.\textsc{Add} \texttt{a(1)} \textsc{false} ] ]
                            [.\texttt{then} \texttt{b(2)} ] ] ] ]
-\node[font=\footnotesize, below=0.5cm of current bounding box.south] {as parsed};
 \end{scope}
-\begin{scope}[xshift=6cm]
+\node[font=\footnotesize, below=0.5cm of parsedTreeB.south] {as parsed};
+\begin{scope}[xshift=9cm, local bounding box=recoveredTreeB]
 \Tree [.\textsc{Choice}
         [.\textbf{Condition} [.\texttt{cond} \textsc{true} ] [.\texttt{then} \texttt{a(1)} ] ]
         [.\textbf{Condition} [.\texttt{cond} \textsc{false} ] [.\texttt{then} \texttt{b(2)} ] ] ]
-\node[font=\footnotesize, below=0.5cm of current bounding box.south] {as recovered};
 \end{scope}
+\node[font=\footnotesize, below=0.5cm of recoveredTreeB.south] {as recovered};
 \end{tikzpicture}
 ```
 
