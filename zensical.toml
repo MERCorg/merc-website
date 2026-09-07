@@ -21,17 +21,29 @@ nav = [
       "developer/rewriting/set-automaton.md",
       "developer/rewriting/machine-numbers.md",
     ] },
+    { "Parsing" = [
+      "developer/parsing/disambiguation.md",
+      "developer/parsing/precedence.md",
+    ] },
     { "Type Checking" = [
       "developer/typechecking/index.md",
-      "developer/typechecking/data-specification.md",
-      "developer/typechecking/process-specification.md",
-      "developer/typechecking/pbes-specification.md",
-      "developer/typechecking/pres-specification.md",
-      "developer/typechecking/lsp.md",
+      "developer/typechecking/name-resolution.md",
+      "developer/typechecking/desugaring.md",
+      "developer/typechecking/signature.md",
+      "developer/typechecking/system-specification.md",
+      "developer/typechecking/sort-inference.md",
+      "developer/typechecking/lowering.md",
+      "developer/typechecking/typing-info.md",
+    ] },
+    { "Specification" = [
+      "developer/specification/index.md",
     ] },
     { "Symbolic Parity Games" = [
       "developer/symbolic/zielonka.md",
       "developer/symbolic/partial-solving.md",
+    ] },
+    { "Linearisation" = [
+      "developer/linearisation/index.md",
     ] },
   ] },
   { Maintainers = [

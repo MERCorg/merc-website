@@ -1,4 +1,4 @@
-# The Sabre set automaton
+# The Set Automaton
 
 `merc_sabre` — the **S**et **A**utomaton **B**ased **R**ewrit**e** engine — finds
 every left-hand side that matches *anywhere* in a term in a single automaton
@@ -97,9 +97,6 @@ after being exposed by the machine-word work.
 
 ## The partition-merge bug
 
-!!! Warning
-    I don't quite understand this bug, so I should add a small example.
-
 Until this fix, the fresh-subtree decision reused the same
 announcement-position comparison `partition` uses internally — testing a
 fresh position against the deduplicated announcement positions of each
@@ -115,15 +112,105 @@ splicing in a fresh copy of every rewrite rule each time — so the state it
 produced never matched one already built, the construction's worklist never
 drained, and `SetAutomaton::new` never returned.
 
-!!! note "Why this had gone unnoticed"
-    The defect isn't specific to any one kind of rule — a group with a
-    surviving root-anchored goal is unremarkable. What made it manifest as
-    outright non-termination, rather than merely coarser grouping that still
-    settles, was the recursive digit-chain shape of the `MachineWord`
-    arithmetic rules (see [Machine Numbers](machine-numbers.md)): each round
-    finds a genuinely new, deeper obligation position to fold in, so the
-    worklist has something to keep growing forever rather than eventually
-    running dry.
+### A worked example: `+` on machine-word `Pos`
+
+`merc`'s machine-word encoding gives `Pos` addition six equations:
+
+```
+(@most_significant_digit(w1) + @most_significant_digit(w2)) = ...;
+(@concat_digit(p1,w1)        + @most_significant_digit(w2)) = ...;
+(@most_significant_digit(w1) + @concat_digit(p2,w2))        = ...;
+(@concat_digit(p1,w1)        + @concat_digit(p2,w2))        = ...;
+(@succ_pos(p1) + p2) = @succ_pos((p1 + p2));
+(p1 + @succ_pos(p2)) = @succ_pos((p1 + p2));
+```
+
+The first four match on the digit mappings `@most_significant_digit`/
+`@concat_digit`, one case per combination of one-digit/multi-digit operand.
+The last two exist because, in this encoding, `Pos`'s actual *constructors*
+are `@c1` and `@succ_pos` — the digit mappings are only ever produced by
+equations, so an unreduced `@succ_pos`-headed term can still legitimately
+reach `+`, and these two equations are its home. Note their shape: each
+constrains only *one* argument (`@succ_pos(p1)`, `@succ_pos(p2)`) and leaves
+the other (`p2`, `p1`) a completely unconstrained variable.
+
+Building the automaton starts by matching the root `+` symbol, which turns
+each equation into a goal with one obligation per non-variable argument:
+
+| equation | obligation at position 1 | obligation at position 2 |
+|---|---|---|
+| digit + digit | `@most_significant_digit(w1)` | `@most_significant_digit(w2)` |
+| chain + digit | `@concat_digit(p1,w1)` | `@most_significant_digit(w2)` |
+| digit + chain | `@most_significant_digit(w1)` | `@concat_digit(p2,w2)` |
+| chain + chain | `@concat_digit(p1,w1)` | `@concat_digit(p2,w2)` |
+| succ + * | `@succ_pos(p1)` | *(none — `p2` is a bare variable)* |
+| * + succ | *(none — `p1` is a bare variable)* | `@succ_pos(p2)` |
+
+All six goals still announce at `ε`, so `partition`'s root special case puts
+them in one group — correct so far, the same one-time special case described
+above. Now follow one branch: the construction tries symbol `@succ_pos` at
+position 1. For the four digit-based goals this is a mismatch (discarded).
+For "succ + *" it's a complete match — `@succ_pos(p1)`'s only child is a
+variable, and that goal had no obligation at position 2 either, so the whole
+equation is *completed* right here and becomes an announcement, not a goal
+in the next state. For "* + succ" there was never an obligation at
+position 1, so it carries forward unchanged, still holding only its
+position-2 obligation.
+
+The resulting state has exactly one live goal, whose sole obligation sits at
+position 2 — the group's announcement position correctly shrinks away from
+`ε`, and picking `@succ_pos` at position 2 first instead makes no
+difference by symmetry. Six equations for `+`, on their own, settle in one
+step; that's not yet a bug.
+
+What *is* enough to get stuck is for one of these lopsided goals — one
+operand pinned, the other a bare variable, its lone obligation left sitting
+at just position 1 or just position 2 — to still be in a group the next time
+the construction discovers a fresh subtree belonging to some *other*
+equation whose own obligation happens to sit at the sibling position. The
+old code decided whether to fold that fresh subtree into an existing group
+by testing it against the group's **announcement** positions, and a group
+holding one of these lopsided goals still announces at `ε` — because
+`greatest_common_prefix` can't produce a common prefix longer than `ε` while
+one member constrains position 1 and nothing else in that partition
+constrains position 1 at all. Since `pos_comparable(ε, anything)` is always
+`true`, such a group is a standing invitation: the next fresh subtree the
+construction meets, from whichever equation, gets folded in rather than
+started fresh, widening the group's positions again and leaving it just as
+open at `ε` for another round. Repeated across a whole specification where
+`+`, `<`, `==`, `*`, … on `Pos` and `Nat` all repeat this same "succ + *"
+shape, there is always another candidate goal ready to keep some group open
+— exactly what the fix's own comment describes: such a partition "absorbed
+every subsequent fresh subtree without bound," so the construction's
+worklist never drained.
+
+### Why this doesn't happen with the ordinary binary rules
+
+The `Binary` encoding's `Pos` addition — `@addc` in
+[`pos.mcrl2`](https://github.com/MERCorg/merc/blob/main/crates/syntax/spec/pos.mcrl2) —
+has equations with the same superficial shape (`@addc(false,@c1,p) = succ(p)`
+leaves `p` unconstrained, just like `@succ_pos(p1) + p2` does above), so a
+transient `ε`-glued group can form there too. What it doesn't have is a
+*second* representation to keep re-triggering that shape. `Pos`'s
+constructors in `Binary` mode are `@c1` and `@cDub` — the same pair every
+equation is written against, with no generic-constructor counterpart layered
+on top: `succ` is only ever a plain mapping, fully defined by its own closed
+equations over `@cDub`, and it never appears as an argument pattern inside
+`+`'s own left-hand sides. So once `@addc`'s handful of equations have been
+told apart, every surviving goal ends up needing the same one remaining
+position, the group's announcement position shrinks for good, and it stops
+being a magnet for unrelated subtrees.
+
+`Pos` (and `Nat`) under `MachineWord`, by contrast, keep `@succ_pos`
+(`@succ_nat`) as a real constructor *alongside* the digit mappings precisely
+so that a not-yet-normalized term built the generic way still has somewhere
+to go — which means **every** arithmetic and comparison operator on these
+sorts (`+`, `<`, `==`, `*`, …) needs its own "succ + *" / "* + succ" pair the
+way `+` does above. With one shared automaton covering the whole
+specification, one persistently `ε`-anchored group anywhere is enough:
+"absorbed every subsequent fresh subtree without bound," as the fix's own
+comment puts it, is exactly what happens when the merge test can't tell a
+group that has genuinely settled from one that's still open at the root.
 
 The fix swaps the test to use each group's remaining **obligation**
 positions instead:
@@ -147,11 +234,3 @@ was simply matched once, long ago, and never revisited. A fresh subtree now
 only joins a group when one of that group's still-open obligations actually
 sits under (or over) it, which is the condition the algorithm always meant
 to test.
-
-`MatchGoal::partition`'s own grouping rule — comparable *announcement*
-positions, with the root-position special case — is unchanged; only the
-downstream decision of whether to fold a newly discovered subtree into one
-of `partition`'s groups moved from announcement positions to obligation
-positions. The fix trades a documented amount of precision for guaranteed
-termination: some fresh subtrees that could, in principle, have safely
-shared a destination now start their own instead.

@@ -40,58 +40,72 @@ The entry point is `DataSpecification::from_untyped`, which takes the untyped
 
 \begin{tikzpicture}[
   every node/.style={font=\small},
-  lbl/.style={font=\scriptsize, align=left}
+  stage/.style={draw, rounded corners=6pt, minimum width=7.4cm, minimum height=1.1cm, align=center},
+  phase/.style={draw, dashed, rounded corners=4pt, minimum width=6.8cm, minimum height=0.9cm, align=center, font=\scriptsize}
 ]
 
-\node[draw, rounded corners=6pt, minimum width=7.4cm, minimum height=1.1cm, align=center] (untyped) at (0,0) {UntypedDataSpecification \\ \scriptsize(merc\_syntax AST)};
+\node[stage] (untyped) at (0,0) {UntypedDataSpecification \\ \scriptsize(merc\_syntax AST)};
 
-\node[draw, rounded corners=6pt, minimum width=7.4cm, minimum height=1.1cm, align=center] (typed) at (0,-6.4) {Typed specification + sort assignment \\ \scriptsize(ExprId $\to$ ResolvedSort)};
+\node[phase] (phase0) at (0,-1.9) {Phase 0 -- sort layer\\ flatten, name resolution, alias checks, normalization};
 
-\node[draw, rounded corners=6pt, minimum width=7.4cm, minimum height=1.1cm, align=center] (lowered) at (0,-9.8) {merc\_data::Mcrl2DataSpecification \\ \scriptsize(aterm, fully typed)};
+\node[phase] (phase1) at (0,-3.4) {Phase 1 -- desugaring and operator lowering};
 
-\draw[->, thick] (untyped) -- (typed) node[midway, right, lbl, xshift=3mm] {
-  Phase 0 -- sort layer: flatten, name resolution,\\
-  \hspace{2mm} alias checks, normalization\\
-  Phase 1 -- desugaring and operator lowering\\
-  Phase 2 -- signature $(S, C, M)$ + well-typedness checks;\\
-  \hspace{2mm} sort resolution onto the interned lattice\\
-  Phase 3 -- constraint-based sort inference\\
-  \hspace{2mm} (per equation, memoized)
-};
+\node[phase] (phase2) at (0,-4.9) {Phase 2 -- signature $(S, C, M)$ + well-typedness checks\\ sort resolution onto the interned lattice};
 
-\draw[->, thick] (typed) -- (lowered) node[midway, right, lbl, xshift=3mm] {Phase 4 -- lowering};
+\node[phase] (phase3) at (0,-6.4) {Phase 3 -- constraint-based sort inference\\ (per equation, memoized)};
+
+\node[stage] (typed) at (0,-8.2) {Typed specification + sort assignment \\ \scriptsize(ExprId $\to$ ResolvedSort)};
+
+\node[phase] (phase4) at (0,-9.7) {Phase 4 -- lowering};
+
+\node[stage] (lowered) at (0,-11.1) {merc\_data::Mcrl2DataSpecification \\ \scriptsize(aterm, fully typed)};
+
+\draw[->, thick] (untyped) -- (phase0);
+\draw[->, thick] (phase0) -- (phase1);
+\draw[->, thick] (phase1) -- (phase2);
+\draw[->, thick] (phase2) -- (phase3);
+\draw[->, thick] (phase3) -- (typed);
+\draw[->, thick] (typed) -- (phase4);
+\draw[->, thick] (phase4) -- (lowered);
 
 \end{tikzpicture}
 ```
 
 </div>
 
-The guiding idea is a **split representation**. During type checking, sorts are
-*not* aterms: they are interned indices into a standalone arena, so equality is
-a single integer comparison and typings live in compact side tables keyed by
-expression id. This keeps the checker independent of the aterm term pool —
-faster, testable in isolation, and free of garbage-collection concerns while a
-fixed-point search runs. Only the final lowering phase produces the maximally
-shared aterm representation that the rest of merc (`merc_sabre`,
-`merc_explore`) consumes.
+The guiding idea is a **split representation**. During type checking sorts are
+interned indices into a standalone arena, so equality is a single integer
+comparison and typings live in compact side tables keyed by expression id. Only
+the final lowering phase produces the maximally shared aterm representation that
+the rest of merc (`merc_sabre`, `merc_explore`) consumes.
 
 ## Contents
 
-This part of the documentation is split into five pages:
+This part of the documentation is split one page per pass, plus one page per
+specification kind built on top of them:
 
- - **[Data Specification Type Checking](data-specification.md)** — the core
-   pipeline sketched above: the sort layer, desugaring, the signature and the
-   system-defined specification, the sort lattice, constraint-based sort
-   inference, and lowering back to aterms.
- - **[Process Specification Type Checking](process-specification.md)** — how
-   `ProcessSpecification` builds on the data checker, including the
-   `.`/`+`/`||` grammar-ambiguity reparse pass it runs first.
- - **[PBES Specification Type Checking](pbes-specification.md)** — how
-   `PbesSpecification` builds on the data checker to resolve
-   propositional-variable equations, `PropVarInst`s, and quantifier scoping.
- - **[PRES Specification Type Checking](pres-specification.md)** — how
-   `PresSpecification` reuses the same shape for a parameterised *real*
-   equation system, checking `val(...)` expressions against `Real` instead of
-   `Bool`.
- - **[Span-Keyed Typing Info (LSP Support)](lsp.md)** — the `TypingInfo` API
+ - **[Sort & Name Resolution](name-resolution.md)** — Phase 0: sort name
+   resolution, alias-cycle checks, and canonicalization.
+ - **[Desugaring](desugaring.md)** — Phase 1: structured sorts to
+   constructors/recognisers/projections, built-in operators to applications.
+ - **[Signature & Well-Typedness](signature.md)** — Phase 2: the
+   $(S, C, M)$ triple and Definition 15.1.7's well-typedness conditions.
+ - **[The System-Defined Specification](system-specification.md)** —
+   Appendix B's standard data types, why they're checked apart from the
+   user's own declarations, and how a system equation is type checked
+   against a deliberately narrower, group-scoped view of the polymorphic
+   built-ins.
+ - **[Sort Inference](sort-inference.md)** — Phase 3: the sort lattice,
+   constraint generation, unification with subtyping, and the ranked
+   backtracking search — the heart of the crate.
+ - **[Lowering](lowering.md)** — Phase 4: emitting aterms, binary-aterm
+   compatibility, and the known divergences from the mCRL2 toolset.
+
+**Specification kinds built on the pipeline above:**
+
+ - **[Specification Type Checking](../specification/index.md)** — how
+   `ProcessSpecification`, `PbesSpecification`, and `PresSpecification` each
+   build on the data checker, collecting their own declarations and then
+   type checking every expression.
+ - **[Span-Keyed Typing Info (LSP Support)](typing-info.md)** — the `TypingInfo` API
    that exposes typing facts by source `Span` for editor tooling.

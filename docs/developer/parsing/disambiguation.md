@@ -94,24 +94,12 @@ addition) as the two `Condition`s the concrete syntax intended:
 
 Note the misparse nests one `Condition` inside the other's `then`, not a
 top-level `Binary { op: Add, .. }` sitting beside it — `disambiguate` has to
-walk into an as-parsed `then` looking for exactly this shape (`take_swallow`
-in `crate::process::disambiguation`) before it can split it back into
-sibling `Choice` branches. `P || cond -> Q` (parallel composition guarding a
-condition) is the same bug with `Disj`/`Parallel` in place of `Add`/`Choice`.
-A single-action
-`hide`/`block`/`allow` application (`hide({a}, P)`, ordinary function-call
-syntax) can also appear as the swallowed operand and is recovered the same
-way, re-attaching its action set to the rebuilt `Hide`/`Block`/`Allow` node.
-
-Before type checking runs, `crate::process::disambiguation` walks the
-specification and rewrites every misparsed `Condition` back into the
-`Sequence`/`Choice`/`Parallel`/`Action`/`Hide`/`Block`/`Allow` shape it should
-have parsed as. This needs only the declared action/process *names*, matching
-how mCRL2 itself resolves the same ambiguity before its own type checking
-runs. Because the
-pass runs unconditionally first, the process-body walk never needs
-error-driven recovery of its own — every `Condition` it sees is already
-correctly shaped.
+walk into an as-parsed `then` looking for exactly this shape before it can split
+it back into sibling `Choice` branches. `P || cond -> Q` (parallel composition
+guarding a condition) is the same bug with `Disj`/`Parallel` in place of
+`Add`/`Choice`. A single-action `hide`/`block`/`allow` application can also
+appear as the swallowed operand and is recovered the same way, re-attaching its
+action set to the rebuilt `Hide`/`Block`/`Allow` node.
 
 **Known limitation.** `||_` (`LeftMerge`) has no data-operator equivalent in
 the grammar at all, so it can't reach this swallow through the same mechanism.

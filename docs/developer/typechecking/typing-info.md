@@ -1,7 +1,6 @@
 # LSP Support
 
-Everything in the [data specification](data-specification.md) and [process
-specification](process-specification.md) pipelines tracks sorts internally by
+The type checking pipelines tracks sorts internally by
 `ExprId`, an index assigned over the *lowered* expression tree — it can
 contain nodes with no counterpart in the original, unlowered syntax a caller
 parsed (the desugared `Id("+")` of `x + y`, for instance), so an external
@@ -30,8 +29,8 @@ discard or relocate a sort's original span — so this API can't answer sort
 go-to-definition from `TypedNode::sort` alone; use the `Def` sort's carried
 `DefId` instead.
 
-[Process](process-specification.md), [PBES](pbes-specification.md), and
-[PRES](pres-specification.md) specifications expose the same API over their
+[Process, PBES, and PRES](../specification/index.md#span-keyed-typing-info-lsp-support)
+specifications expose the same API over their
 own subtrees: `ProcessSpecification::typing_info` merges every checked
 process-body expression (action arguments, process-instantiation arguments,
 conditions, time bounds, `dist` weights); `PbesSpecification::typing_info`
@@ -103,7 +102,7 @@ inference's concern, not `checking::Scope`'s.
 
 `ProcessExprKind::Action`/`Id`'s `name` is the opposite case from a variable
 occurrence: it is resolved by
-[`check_action_or_process`/`check_instantiation`](process-specification.md#a-second-unrelated-ambiguity-action-vs-process-instantiation) —
+[`check_action_or_process`/`check_instantiation`](../specification/index.md#a-second-unrelated-ambiguity-action-vs-process-instantiation) —
 an overloaded, arity-and-sort-based lookup that needs an argument's *inferred*
 sort to pick the right declaration, the same category `Constructor`/`Mapping`
 resolution falls into. So it cannot move into the syntactic pre-pass above; it

@@ -1,4 +1,4 @@
-# Precedence: Pest (merc) vs. dparser (mCRL2)
+# Precedence
 
 merc and mCRL2 implement the same documented `DataExpr` precedence table.
 In particular, quantifiers and lambdas have low precedence, while operators
@@ -130,11 +130,10 @@ parse-tree patterns that would violate it.
 
 Afroozeh, van den Brand, Johnstone, Scott & Vinju (["Safe Specification of
 Operator Precedence Rules"](https://doi.org/10.1007/978-3-319-02654-1_8), SLE
-2013) showed that filters of this kind — checking only a direct parent-child
-relationship — are provably unable to resolve deep conflicts: the very case
-where a low-priority prefix operator (`exists`) is separated from the
-higher-priority operator it should or shouldn't absorb (`&&`) by an intervening
-node (`!`).
+2013) showed that filters of this kind are provably unable to resolve deep
+conflicts: the very case where a low-priority prefix operator (`exists`) is
+separated from the higher-priority operator it should or shouldn't absorb (`&&`)
+by an intervening node (`!`).
 
 Amorim, Steindorfer & Visser (["Towards Zero-Overhead Disambiguation of Deep
 Priority Conflicts"](https://arxiv.org/abs/1803.10215), *The Art, Science,

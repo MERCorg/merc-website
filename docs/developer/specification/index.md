@@ -5,7 +5,7 @@ kinds build on top of it: `ProcessSpecification` (a process algebra term),
 `PbesSpecification` (a parameterised boolean equation system), and
 `PresSpecification` (a parameterised *real* equation system). All three
 follow the same two-step shape: `from_untyped` first type checks the
-embedded [data specification](../typechecking/data-specification.md) exactly
+embedded [data specification](../typechecking/index.md) exactly
 as `DataSpecification::from_untyped_with` does, then **collects
 declarations** into a lookup table before checking anything that refers to
 them, and finally **type checks every expression** by walking the
@@ -111,7 +111,7 @@ which only exist once type checking is underway — no amount of syntactic
 reparsing beforehand could move this check earlier.
 
 The single winning candidate identified this way is also where `name`'s own
-go-to-definition span is filled in — see [LSP support](../typechecking/lsp.md#action-and-process-instantiation-names-resolved-by-the-checker-not-the-pre-pass).
+go-to-definition span is filled in — see [LSP support](../typechecking/typing-info.md#action-and-process-instantiation-names-resolved-by-the-checker-not-the-pre-pass).
 
 ## PBES Specification
 
@@ -150,7 +150,7 @@ another leaf checked against `Real`:
 
 `ProcessSpecification::typing_info`, `PbesSpecification::typing_info`, and
 `PresSpecification::typing_info` each expose the same span-keyed
-[`TypingInfo`](../typechecking/lsp.md) `DataSpecification` does, merged over
+[`TypingInfo`](../typechecking/typing-info.md) `DataSpecification` does, merged over
 every expression the walk above checks:
 
 - **Process** — action arguments, process-instantiation arguments,
