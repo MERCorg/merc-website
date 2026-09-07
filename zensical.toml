@@ -20,6 +20,7 @@ nav = [
       "developer/rewriting/aterms.md",
       "developer/rewriting/set-automaton.md",
       "developer/rewriting/machine-numbers.md",
+      "developer/rewriting/condition-caching.md",
     ] },
     { "Parsing" = [
       "developer/parsing/disambiguation.md",
