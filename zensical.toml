@@ -33,6 +33,7 @@ nav = [
       "developer/typechecking/desugaring.md",
       "developer/typechecking/signature.md",
       "developer/typechecking/system-specification.md",
+      "developer/typechecking/spec-includes.md",
       "developer/typechecking/polymorphism.md",
       "developer/typechecking/sort-inference.md",
       "developer/typechecking/lowering.md",

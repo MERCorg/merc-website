@@ -95,6 +95,9 @@ specification kind built on top of them:
    user's own declarations, and how a system equation is type checked
    against a deliberately narrower, group-scoped view of the polymorphic
    built-ins.
+ - **[Source Maps, Imports & Virtual Templates](spec-includes.md)** — the
+   shared `SourceMap` byte-offset space, `%import` file composition, and how
+   generated system-defined content gets real, renderable declaration spans.
  - **[Type Variables & Polymorphic Schemes](polymorphism.md)** — the
    `type_var` block, `ResolvedSort::Var`, and how a scheme like
    `in: S # List(S) -> Bool` is resolved once and instantiated fresh at
