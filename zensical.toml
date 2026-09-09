@@ -16,6 +16,7 @@ nav = [
     "developer/testing.md",
     "developer/documentation.md",
     "developer/canonicalize-orbit.md",
+    "developer/enumeration.md",
     { "Rewriting" = [
       "developer/rewriting/aterms.md",
       "developer/rewriting/set-automaton.md",
@@ -32,6 +33,7 @@ nav = [
       "developer/typechecking/desugaring.md",
       "developer/typechecking/signature.md",
       "developer/typechecking/system-specification.md",
+      "developer/typechecking/polymorphism.md",
       "developer/typechecking/sort-inference.md",
       "developer/typechecking/lowering.md",
       "developer/typechecking/typing-info.md",

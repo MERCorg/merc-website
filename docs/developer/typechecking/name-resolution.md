@@ -7,10 +7,17 @@ here depends on the signature or on inference.
 ## Phase 0 — Variable Name Resolution
 
 Before any other phase runs, `resolve_data_specification_variables` rewrites
-every `var`-block equation variable occurrence (`condition`/`lhs`/`rhs`) from a
-plain `DataExprKind::Id(name)` into `DataExprKind::Resolved(name,
-declaration_span)`, tying it to its own `var` declaration's span. Type checking
-treats `Resolved` exactly like `Id`.
+every context-free variable occurrence — a `var`-block equation variable, but
+also a `sum`/`dist`/quantifier/`lambda`/comprehension/`whr` binder introduced
+locally *within* an equation body — from a plain `DataExprKind::Id(name)` into
+`DataExprKind::Resolved(name, VarId)`, tying the occurrence to its declaring
+binder's own [`VarId`] rather than to a span directly. `IdDecl::var_id` is
+populated the same way for the binder's own declaration site. Type checking
+treats `Resolved` exactly like `Id`; a declaration span is not carried in the
+tree at all — it lives in a separate `VariableSpans` (`HashMap<VarId, Span>`)
+the pre-pass returns alongside the rewritten tree, and is only looked up when
+[`TypingInfo` is built](typing-info.md#variable-go-to-definition-a-syntactic-pre-pass),
+not during inference itself.
 
 **Design decision — why a pre-pass, and why it can't fail.** A variable
 occurrence's binder — `sum`/`dist`, a process's own parameters, a PBES/PRES
@@ -26,6 +33,13 @@ occurrence refer to", the pass needs no `DataSpecification` and cannot fail: a
 name that resolves to nothing in scope is left as a plain `Id`, unresolved,
 and later inference's `UndeclaredName` error is responsible for rejecting it if
 it turns out to be genuinely undeclared.
+
+A [`type_var`](polymorphism.md) block is resolved by a separate pass,
+`resolve_type_var_ids`, that runs immediately after variable resolution and
+struct hoisting but before ordinary sort-name resolution below — it assigns
+each `type_var` declaration its own `TypeVarId` and rewrites every
+`TypeVar(name)` sort reference to `ResolvedTypeVar(TypeVarId)`, the same
+`Reference`-to-`Resolved` shape sort names use.
 
 ## Phase 0 — The sort layer
 

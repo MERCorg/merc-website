@@ -97,36 +97,56 @@ not paid for by every sort-inference lookup along the way.
 This works as a *pre*-pass, unlike constructor/mapping resolution, because a
 variable reference is genuinely context-free: "which binder does this
 occurrence refer to" is answerable in one syntactic walk over the untyped
-AST, with no dependency on any inferred sort.
+AST, with no dependency on any inferred sort. And because every binder — down
+to a `lambda`/`forall`/`exists`/comprehension/`whr` nested inside a single
+expression — is already resolved to a `VarId` by this one walk, `gen_name`
+(`inference.rs`) never needs a second, by-name fallback scope for a binder
+introduced *within* the expression currently being inferred: `declared_sorts`
+is the only lookup, keyed uniformly by `VarId` regardless of how local the
+binder is.
 
 Because every variable occurrence in a `proc` body/PBES or PRES equation is
 already a `Resolved` node by the time `process::check`/`pbes::check`/
 `pres::check` run, none of the three threads its own name-shadowing scope
-stack: `checking::Scope` (`type Scope = [(VarId, ResolvedSortId)]`) is a flat
-table keyed by each in-scope binder's own `VarId`, not by name or span,
-collected once per `proc` body/PBES/PRES equation (`collect_scope`, walking
-`Sum`/`Dist`/`Quantifier`/`Bound` binders) before any of its leaves are
-checked, rather than pushed and popped as the check walk descends — since
-every binder already has a distinct `VarId` from the pre-pass above, two
-same-named nested binders can never collide here the way a name-keyed scope
-would have to guard against.
+stack either: `checking::Scope` is a flat `[(VarId, ResolvedSortId, Span)]`
+table, collected once per `proc` body/PBES/PRES equation (`collect_binder_sorts`,
+walking `Sum`/`Dist`/`Quantifier`/`Bound` binders) before any of its leaves
+are checked, rather than pushed and popped as the check walk descends. Unlike
+`declared_sorts` above, this table *does* carry the declaration span directly
+alongside the sort — the process/PBES/PRES/modal layer sits outside
+`DataSpecification`'s own equation numbering, so it has no shared
+`VariableSpans` of its own to defer to and keeps its span eagerly instead.
 
-Inference turns that slice into `declared_sorts: HashMap<VarId,
-InferSortId>` and consults it directly by a `Resolved` node's own `VarId` —
-`gen_name` (`inference.rs`) looks the occurrence's `VarId` up there first,
-falling back to signature/builtin resolution only when the lookup misses,
-which in practice only happens for a plain `Id` (`declaration: None`, since
-every `VarId` a pre-pass hands out to a `Resolved` node is one it also put in
-scope for). A binder introduced *within* the one expression currently being
-inferred (a `lambda`/`forall`/`exists`/comprehension/`whr` inside an action
-argument, say) extends this same map —
-`with_binder_scope` inserts each new variable's `VarId` before checking the
-binder's body and removes it again afterwards — rather than falling back to
-a separate by-name table; a data-level binder's own scope is still
-inference's concern, but it's the same `VarId`-keyed map `checking::Scope`
-seeded, not a second mechanism. `ResolvedName::Variable`'s declaration span,
-when `typing_info::build` needs one, is a separate lookup again — by the same
-`VarId`, but into `VariableSpans`, not `declared_sorts`.
+## A standalone expression's own variable spans
+
+`DataSpecification::typecheck_expression_with_typing` checks one closed
+expression outside any specification (see its own doc comment: a free
+identifier is an `InferenceError::UndeclaredName`, since there is no
+enclosing `var` block to draw variables from). It ties the expression's own
+local binders with `resolve_data_expr_variables` — the same pre-pass above,
+but started from an empty `Scope` rather than a whole specification's or
+process's — and passes the resulting local `variable_spans` straight to
+`typing_info::build`. The `TypingInfo` this returns is self-contained and
+safe to use as-is.
+
+What is *not* safe is reusing that local `variable_spans` (or the `VarId`s
+inside the `TypedNode`s it produced) against a *different* resolution pass's
+tables — say, treating an identifier inside `expr` as if it could resolve
+against a full process's own `self.variable_spans`. Two independent problems
+rule this out:
+
+- **Scope.** `resolve_data_expr_variables` starts from an empty `Scope` by
+  design, so it cannot see a process's globals or parameters; a name that is
+  actually process-scoped is either left an unresolved `Id` (and later
+  rejected as `UndeclaredName`) or — if it happens to also name a
+  constructor/mapping — silently resolves to that instead.
+- **Numbering.** Every pre-pass call allocates its `VarId`s from a fresh
+  `VarIdAllocator::default()`, which restarts at `0` (see [`IdAllocator`
+  in `merc_utilities`](https://github.com/MERCorg/merc/blob/main/crates/utilities/src/tagged_index.rs)).
+  A `VarId` is therefore only meaningful against the `VariableSpans` map the
+  *same* call produced. `VarId(2)` from one call and `VarId(2)` from another
+  are unrelated declarations that happen to share a number, not the same
+  variable looked up twice.
 
 ## Action and process-instantiation names: resolved by the checker, not the pre-pass
 

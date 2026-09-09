@@ -95,6 +95,10 @@ specification kind built on top of them:
    user's own declarations, and how a system equation is type checked
    against a deliberately narrower, group-scoped view of the polymorphic
    built-ins.
+ - **[Type Variables & Polymorphic Schemes](polymorphism.md)** — the
+   `type_var` block, `ResolvedSort::Var`, and how a scheme like
+   `in: S # List(S) -> Bool` is resolved once and instantiated fresh at
+   every use site.
  - **[Sort Inference](sort-inference.md)** — Phase 3: the sort lattice,
    constraint generation, unification with subtyping, and the ranked
    backtracking search — the heart of the crate.
