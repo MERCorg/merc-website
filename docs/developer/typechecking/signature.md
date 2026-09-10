@@ -18,6 +18,40 @@ entry rather than two. `build_signature` is idempotent and memoized on
 `TypeCheckContext`, so later phases all share one computed signature instead of
 recomputing it.
 
+## Polymorphic schemes
+
+Alongside `constructors`/`mappings`, `Signature` carries a third, name-keyed
+table, `schemes: HashMap<String, Vec<PolySortScheme>>`. A `PolySortScheme`
+pairs a `ResolvedSortId` — built by `resolve_sort` from a template's own
+declaration, so it may contain [`ResolvedSort::Var`](sort-inference.md#the-sort-lattice)
+at any depth — with the `TypeVarId`s it binds. It is *not* a ground overload:
+using one means instantiating it, substituting each bound variable for a
+fresh unification variable (see
+[the polymorphic signature](system-specification.md#the-polymorphic-signature)
+for the container/function-update/comparison operators that populate this
+table, and how instantiation works).
+
+`schemes` is a separate table rather than a third `SignatureEntry` variant
+folded into `constructors`/`mappings`: a scheme carries no
+`ConstructorId`/`MapId` (it is synthesized from a template, not declared by
+any user or system spec), so giving it the same shape as a ground overload
+would mean threading an id that is never actually there. Keeping it additive
+also meant every existing ground-overload consumer — `merge_signatures`,
+`filter_signature`, the dedup in `push_overload`, every test that indexes
+`signature.constructors`/`.mappings` — needed no change at all when this
+table was introduced; only `build_signature`'s own construction and the one
+lookup site in `gen_name`/`push_signature_disjuncts`
+([inference.rs](system-specification.md#name-resolution-inside-a-system-equation))
+needed to know it exists.
+
+`schemes` is empty for almost every `Signature` value in the pipeline — a
+user declaration never carries a `type_var` block (out of scope for now, see
+`docs/polymorphism.md`'s "Open questions"), so it is populated only for the
+one `Signature` merged into `ctx.signature` and the small standalone table a
+system equation's own body consults; see
+[the polymorphic signature](system-specification.md#the-polymorphic-signature)
+for why those are two different tables rather than one.
+
 ## Well-typedness (Definition 15.1.7) { #well-typedness }
 
 The checks split across two passes, at two different points in the pipeline,

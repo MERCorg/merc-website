@@ -155,7 +155,7 @@ the *lookup order* for a name, and *how* a declared sort resolves, differ:
 
 | | User equation (`EquationRole::User`) | System equation (`EquationRole::System`) |
 |---|---|---|
-| Name resolution order | `ctx.signature` (the full user overload set) → `ctx.system_signature` (concretely-resolved basic-sort operators) → `POLYMORPHIC_SIGNATURE` (container/function-update templates **and** the comparison/`if` schemes) | `ctx.system_equation_signature_by_group[eqn_spec_id]` (**this equation's own group**, concretely resolved) → `ctx.system_signature` → `BUILTIN_SCHEME_SIGNATURE` (comparison/`if` schemes **only** — no container templates) |
+| Name resolution order | `ctx.signature` — ground overloads **and** its `schemes` table (container/function-update templates **and** the comparison/`if` schemes, merged into one table, see [below](#the-polymorphic-signature)) → `ctx.system_signature` (concretely-resolved basic-sort operators; its `schemes` is always empty) | `ctx.system_equation_signature_by_group[eqn_spec_id]` (**this equation's own group**, concretely resolved; its `schemes` is always empty too) → `ctx.system_signature` → `ctx.builtin_scheme_signature` (comparison/`if` schemes **only** — no container templates, built lazily by `build_builtin_scheme_signature`) |
 | Declared-sort resolution | `resolve_sort` — through name resolution and the alias table | `resolve_system_sort` — via the pre-built `system_sort_ids` table, since the system spec's sort references never go through ordinary name resolution |
 | Driven by | `check_equations` / `query_equation_typing` | `check_system_equations` / `query_system_equation_typing` |
 | Memoized in | `ctx.equation_typing` | `ctx.system_equation_typing` |
@@ -246,34 +246,112 @@ that has no concrete counterpart anywhere stays reachable, and everything that
 does (the container/function-update operations) is reached through the
 concrete group signature instead, never both ways at once.
 
-## The polymorphic signature
+## The polymorphic signature { #the-polymorphic-signature }
 
 Because of the above, the built-in operators are made available to Phase-3
-inference in three different ways, according to how many sorts they range
-over:
+inference in two different ways, according to how many sorts they range over:
 
 - **Basic-sort operators** (`&&`, `+`, `-`, `*`, the ordering comparisons on
   numbers, …) range over the five basic sorts only. Their declarations *are*
   resolved per-sort onto the lattice, giving inference an ordinary finite
   overload set — the *system signature* (`ctx.system_signature`).
 - **Comparison operators and `if`** (`==`, `!=`, `<`, `<=`, `>`, `>=`, `if`)
-  exist for *every* sort and are never declared anywhere. They are typed as
-  **schemes** — `==` as $?a \# ?a \to Bool$, `if` as $Bool \# ?a \# ?a \to ?a$
-  — instantiated with a fresh unification variable per occurrence.
-- **Container and function-update operations** exist for every *element*
-  sort. Their template declarations are collected once into a *polymorphic
-  signature*, keyed by name, with the template sort variables (`S`, `T`) left
-  as unresolved references. Inference looks them up there and instantiates
-  each overload with fresh unification variables per occurrence, exactly like
-  the comparison schemes (`template_instance`).
+  and **container/function-update operations** (`in`, `#`, `|>`, `head`, the
+  function-update operators, …) both exist for every sort (respectively,
+  every element sort) and are never declared concretely anywhere. Both are
+  typed as **schemes** — `==` as $?a \# ?a \to Bool$, `if` as $Bool \# ?a
+  \# ?a \to ?a$, `in` as $?a \# List(?a) \to Bool$ — each declared exactly
+  once, in a template with a real `type_var` block: `spec/*.mcrl2`'s six
+  container/function-update templates, and `BUILTIN_SCHEME_TEMPLATE` for the
+  comparisons and `if`. `build_polymorphic_schemes` turns every declaration
+  of every such template into a [`PolySortScheme`](signature.md#polymorphic-schemes)
+  by resolving it with the ordinary `resolve_sort` — legal here specifically
+  because none of these templates references a `DefId`/nominal sort (see
+  [below](#why-resolve_sort-is-safe-on-a-template)). Every occurrence of a
+  template's own bound variable interns to the *same* `ResolvedSort::Var`,
+  which is what lets `S` mean "the same `S`" on both sides of a scheme like
+  `in: S # List(S) -> Bool`.
 
-This mirrors mCRL2's built-in polymorphic symbol table. The per-sort
-instantiations of the polymorphic operations still exist in the system
-specification — they are needed for the defining equations (via the group
-signatures above) and for Phase-4 lowering — but, as explained above, they are
-deliberately *not* resolved into the *outer* signature that a user equation's
-inference searches. Phase-4 lowering recovers the concrete operation from the
-operator name together with the sort that inference assigned the occurrence.
+Using a scheme means *instantiating* it: `ConstraintGenerator::instantiate_scheme`
+walks the scheme's already-interned `ResolvedSort` — not a syntax tree —
+substituting one fresh unification variable for each distinct `Var` it
+encounters, shared across that `Var`'s occurrences within the one call. This
+mirrors mCRL2's own polymorphic built-in symbol table. The per-sort
+instantiations of the container/function-update operations still exist
+*concretely* in the system-defined specification — needed for their own
+defining equations (via the group signatures above) and for Phase-4 lowering
+— but, as explained above, they are deliberately *not* resolved into the
+*outer* signature a user equation's inference searches; only the scheme is.
+Phase-4 lowering recovers the concrete operation from the operator name
+together with the sort inference assigned the occurrence.
+
+### One merged table for a user equation, a narrower one for a system equation
+
+`ctx.signature.schemes` — built once, alongside the ordinary `constructors`/
+`mappings`, by `build_signature` — holds *all* of the above together:
+containers, function-update, and the comparison/`if` schemes, in the one
+`Signature` a user equation's `gen_name` already searches for its ground
+overloads. This is why a user equation needs only two lookups, not three:
+`push_signature_disjuncts` pushes both the ground and the scheme overloads of
+`ctx.signature` in one pass, then does the same (ground only — its `schemes`
+is always empty) for `ctx.system_signature`.
+
+A system equation cannot reuse `ctx.signature.schemes` wholesale, for the same
+reason [above](#why-system-equations-cant-share-one-pooled-signature) that it
+cannot reuse the container instantiations concretely: its own group signature
+already resolves the container/function-update operations *concretely*, for
+its own group, so re-adding the polymorphic container schemes as a fallback
+would misreport ambiguity — every container-op call in a system equation
+would tie between the group's concrete overload and a freshly-instantiated
+scheme of the same sort. The comparison operators and `if` carry no such
+risk — no template ever declares `==: Nat # Nat -> Bool` concretely, so they
+are reachable *only* through a scheme, for either role. This asymmetry is why
+a system equation is handed a different, narrower table,
+`ctx.builtin_scheme_signature`: built lazily by `build_builtin_scheme_signature`
+from `BUILTIN_SCHEME_TEMPLATE` alone (no container templates), and consulted
+by `gen_name` as one small extra loop after the two `push_signature_disjuncts`
+calls above.
+
+`ctx.builtin_scheme_signature` and `ctx.signature.schemes` are populated by
+the *same* function, `build_polymorphic_schemes`, just handed a different
+list of templates — one instantiation mechanism for the whole crate, not two.
+Before this, `BUILTIN_SCHEME_TEMPLATE` was the last template anywhere that
+still spelled its variable as a bare `Reference("S")` rather than a
+`type_var` block, matched by name at every call site
+(`template_instance`/`template_node`, walking the raw `SortExpression`
+syntax tree per occurrence, one fresh `HashMap<String, InferSortId>` per
+call); giving it a real `type_var` — the same as the six container templates
+already had — retired that string-matching path entirely, along with the
+`POLYMORPHIC_SIGNATURE`/`BUILTIN_SCHEME_SIGNATURE` `LazyLock` statics that
+used to hold the old syntax-tree-shaped tables. They could not simply become
+fields on `ctx` unchanged, either: a `PolySortScheme`'s `ResolvedSortId` is
+scoped to one `TypeCheckContext`'s own `SortInterner`, so — unlike the old
+`Reference`-based tables, which needed no interner at all to build — the
+replacement can only be built once per `ctx`, never once per process as a
+`static` would imply.
+
+### Why `resolve_sort` is safe to call on a template { #why-resolve_sort-is-safe-on-a-template }
+
+`resolve_sort` ordinarily panics on a `Reference` node (see
+[below](#why-not-just-reuse-resolve_sort)) and, for a `Resolved` node,
+indexes whichever spec's `sort_declarations` was passed in — a real risk when
+a system-internal `DefId` is involved (see [the `DefId`
+offset](#system-internal-sorts-and-the-defid-offset)). Neither risk applies
+to the six container/function-update templates or `BUILTIN_SCHEME_TEMPLATE`:
+none of them declares a nominal `sort X;` or contains a `Resolved(_, DefId)`
+node anywhere — only `type_var`, primitive, container and function sorts — so
+`resolve_sort` never reaches a `Reference` or `Resolved` arm on this path at
+all. `build_polymorphic_schemes` calls `resolve_sort(ctx, template,
+&decl.sort)` against each template's own self-contained spec exactly because
+this was verified, not assumed — the same property is what let migration-plan
+step 3 of `docs/polymorphism.md` (the RFC behind this design) scope itself to
+exactly this set of templates and stop there, leaving
+`ctx.system_signature`/`resolve_system_sort`/`SystemEquationGroup`/
+`EquationRole` untouched: the basic-sort operators' own declarations *do*
+reference system-internal nominal sorts like `@NatPair`, so retiring
+`resolve_system_sort` in their favor needs the `DefId`-collision problem
+solved first, a separable piece of work the migration plan tracks as its own
+later step.
 
 ### Why polymorphism at all
 

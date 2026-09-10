@@ -21,7 +21,20 @@ of:
 - a container sort `op(S)` such as `List(S)`, `Set(S)` or `FBag(S)`;
 - a function sort $A_0 \# \dots \# A_n \to B$;
 - a nominal sort `Def(d)`, identified by the declaration `d` it resolves to;
-- a `Unit` sort, used internally for the result of an action.
+- a `Unit` sort, used internally for the result of an action;
+- a bound type variable `Var(id)`, scoped to whichever polymorphic template
+  declared it. It is a genuine lattice element on the same footing as the
+  others — not a syntax-tree placeholder — but it never survives past sort
+  inference: [instantiating a scheme](system-specification.md#the-polymorphic-signature)
+  replaces every occurrence of one `Var` with a fresh unification variable
+  before the constraint generator emits anything downstream of it, so
+  lowering and the LSP-facing `sort_expression` both treat reaching a `Var`
+  as an invariant violation (`unreachable!`) rather than a case to handle.
+  Two `Var`s compare equal only when their ids match, and — like `Def` — a
+  `Var` never joins or meets with anything, itself included at a different
+  id: a bound variable is opaque to the coercion lattice, exactly as it must
+  be for `in: S # List(S) -> Bool` to mean "the same `S`" on both sides
+  without secretly widening.
 
 Because sorts are **interned**, each distinct sort is stored once and two
 sorts are equal exactly when their indices are equal — a sort comparison is a

@@ -61,22 +61,38 @@ an experimental language server built on it lives at
 
 ## Variable go-to-definition: a syntactic pre-pass
 
-`ResolvedName::Variable`'s `declaration: Option<Span>` — the binder's own
-declaration site, for a variable occurrence's go-to-definition — is filled by
-a dedicated pass that runs *before* type checking starts.
+A variable occurrence's identity is settled by a dedicated pass that runs
+*before* type checking starts, not by the checker itself.
 `resolution::variable_resolution::resolve_process_variables`/
 `resolve_pbes_variables`/`resolve_pres_variables`/
 `resolve_data_specification_variables` each walk their untyped tree (a
 `proc`/`init` body, a PBES or PRES equation/`init`, or a data specification's
 own `var`-block equations, respectively) and rewrite a context-free variable
 occurrence's `DataExprKind::Id(name)` into `DataExprKind::Resolved(name,
-declaration_span)` wherever `name` names a binder currently in (lexical)
-scope — `sum`/`dist`, a process's own parameters, a PBES quantifier/equation
+VarId)` wherever `name` names a binder currently in (lexical) scope —
+`sum`/`dist`, a process's own parameters, a PBES quantifier/equation
 parameter, a PRES `inf`/`sup`/`sum`/equation parameter, a lambda/quantifier/
 comprehension/`whr` binder, or a data specification's own `var`-block
 declaration. A name resolving to nothing in scope is left as a plain `Id`,
 unresolved by this pass — the existing `UndeclaredName` inference error still
-catches it later, this pass cannot fail on its own.
+catches it later, this pass cannot fail on its own. Each binder's own
+declaration (`IdDecl`) gets its `VarId` assigned here too, via a
+`VarIdAllocator` — every binder site except a constructor/map declaration
+carries one — so a `VarId` is the one identity a binder and every occurrence
+resolving to it agree on. The pass's own `Scope(Vec<(String, VarId)>)`
+(distinct from `checking::Scope` below) is a transient name→`VarId` shadowing
+stack that exists only to answer "which binder does this name currently
+refer to" while walking; it's discarded once the walk finishes.
+
+The same pass also builds `VariableSpans` (`HashMap<VarId, Span>`), pairing
+each binder's `VarId` with the span of the identifier it declares — this is
+the table `ResolvedName::Variable`'s `declaration: Option<Span>` is later
+resolved from (by `VarId`, in `typing_info::resolved_name`), not something
+carried on the `Resolved` node itself. Keeping the span in a side table
+rather than a third field on `Resolved` means an ordinary reference
+occurrence stays a plain `(name, VarId)` pair — the declaration site is only
+ever looked up by the handful of callers that build a `TypingInfo` at all,
+not paid for by every sort-inference lookup along the way.
 
 This works as a *pre*-pass, unlike constructor/mapping resolution, because a
 variable reference is genuinely context-free: "which binder does this
@@ -86,17 +102,31 @@ AST, with no dependency on any inferred sort.
 Because every variable occurrence in a `proc` body/PBES or PRES equation is
 already a `Resolved` node by the time `process::check`/`pbes::check`/
 `pres::check` run, none of the three threads its own name-shadowing scope
-stack: `checking::Scope` is a flat `(declaration span, resolved sort)` table,
+stack: `checking::Scope` (`type Scope = [(VarId, ResolvedSortId)]`) is a flat
+table keyed by each in-scope binder's own `VarId`, not by name or span,
 collected once per `proc` body/PBES/PRES equation (`collect_scope`, walking
 `Sum`/`Dist`/`Quantifier`/`Bound` binders) before any of its leaves are
-checked, rather than pushed and popped as the check walk descends. A
-`Resolved` node's own declaration span looks itself up in that table
-directly. `gen_name` (`inference.rs`) tries this span-keyed table first, then
-falls back to its own by-name map for a binder introduced *within* the one
-expression currently being inferred (a `lambda`/`forall`/`exists`/
-comprehension/`whr` inside an action argument, say) — the same by-name lookup
-a plain `Id` always used, since a data-level binder's own scope is still
-inference's concern, not `checking::Scope`'s.
+checked, rather than pushed and popped as the check walk descends — since
+every binder already has a distinct `VarId` from the pre-pass above, two
+same-named nested binders can never collide here the way a name-keyed scope
+would have to guard against.
+
+Inference turns that slice into `declared_sorts: HashMap<VarId,
+InferSortId>` and consults it directly by a `Resolved` node's own `VarId` —
+`gen_name` (`inference.rs`) looks the occurrence's `VarId` up there first,
+falling back to signature/builtin resolution only when the lookup misses,
+which in practice only happens for a plain `Id` (`declaration: None`, since
+every `VarId` a pre-pass hands out to a `Resolved` node is one it also put in
+scope for). A binder introduced *within* the one expression currently being
+inferred (a `lambda`/`forall`/`exists`/comprehension/`whr` inside an action
+argument, say) extends this same map —
+`with_binder_scope` inserts each new variable's `VarId` before checking the
+binder's body and removes it again afterwards — rather than falling back to
+a separate by-name table; a data-level binder's own scope is still
+inference's concern, but it's the same `VarId`-keyed map `checking::Scope`
+seeded, not a second mechanism. `ResolvedName::Variable`'s declaration span,
+when `typing_info::build` needs one, is a separate lookup again — by the same
+`VarId`, but into `VariableSpans`, not `declared_sorts`.
 
 ## Action and process-instantiation names: resolved by the checker, not the pre-pass
 
