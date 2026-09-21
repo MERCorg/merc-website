@@ -15,8 +15,11 @@ nav = [
     "developer/general.md",
     "developer/testing.md",
     "developer/documentation.md",
-    "developer/canonicalize-orbit.md",
     "developer/enumeration.md",
+    { "Symmetry" = [
+      "developer/symmetry/symmetry-detection-graph.md",
+      "developer/symmetry/canonicalize-orbit.md",
+    ] },
     { "Rewriting" = [
       "developer/rewriting/aterms.md",
       "developer/rewriting/set-automaton.md",
