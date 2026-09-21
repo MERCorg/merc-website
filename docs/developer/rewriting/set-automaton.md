@@ -232,5 +232,45 @@ obligation positions when a rule's pattern is *genuinely* still anchored at
 the root — real, load-bearing overlap — never as a leftover from a rule that
 was simply matched once, long ago, and never revisited. A fresh subtree now
 only joins a group when one of that group's still-open obligations actually
-sits under (or over) it, which is the condition the algorithm always meant
-to test.
+sits under (or over) it.
+
+Note that this is a deviation from the original construction, which merges on
+announcement positions (and `MatchGoal::partition` itself still groups goals
+that way), not a restoration of it.
+
+## Effect on rewriting order
+
+The fix is not purely a termination fix: it also changes the shape of the
+automaton and the order in which Sabre inspects subterms.
+
+Every obligation of a goal sits at or below that goal's announcement position.
+If a fresh position is comparable to an obligation position it is therefore
+also comparable to the announcement position, so the obligation test only
+ever *splits off* fresh positions that the announcement test would have
+merged; it never merges anything new. The split-off case is a fresh position
+that lies below an announcement position but beside all remaining obligations,
+for example under a variable argument of the pattern. Such a position becomes
+a separate hypertransition destination to the initial state, so the automaton
+has more, smaller states.
+
+Sabre explores the destinations of a hypertransition depth first in sorted
+position order: `ConfigurationStack::grow` follows the first destination and
+pushes the remainder as a side branch. This determines which redex is found,
+and applied, first.
+
+- **Root matches still take priority.** A state's label is chosen from its
+  root-anchored goals only (`State::new`), so in the old merged state the
+  fresh goals were not inspected while a root goal was alive. In the new
+  version the group's greatest common prefix is a prefix of the split-off
+  position, so the group sorts, and is explored, first. In both cases the
+  root is matched before the split-off subterm is visited.
+- **Sibling order changes once the root goals fail.** Previously the fresh
+  goals were re-partitioned together with the other fresh subtrees and visited
+  in position order. Now the split-off subtree is only visited after the entire
+  group branch has been explored.
+
+This can go either way. Consider the rule `f(y, g(x)) = x` applied to
+`f(t1, h(...))` where `h(...)` rewrites to a `g`-term. The new construction
+explores argument 2 first, whereas the old construction visits `t1` first even
+though the rule discards it; here the new order is lazier. Whether there are
+cases where it is measurably less lazy has not been determined yet.
