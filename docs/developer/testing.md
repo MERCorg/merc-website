@@ -11,12 +11,12 @@ faults (although these should be exceedingly rare). Some tests that are ignored
 by default require a larger stack size, which can be set using the environment
 variable `RUST_MIN_STACK`.
 
-For random testing we use a utility function `random_test`, from the
-`merc_utilities` crate, that prints the seed used for random generation when a
+For random testing we use a utility function [`random_test`](https://mercorg.github.io/merc/merc_utilities/fn.random_test.html), from the
+[`merc_utilities`](https://mercorg.github.io/merc/merc_utilities/index.html) crate, that prints the seed used for random generation when a
 test fails, allowing for easy reproduction of failures. This seed can then be
 passed to the test using the `MERC_SEED=<seed>` environment variable.
 Furthermore, some tests also dump the randomly generated input files to disk
-using the `DumpFiles` utility from the same crate, which can be helpful for
+using the [`DumpFiles`](https://mercorg.github.io/merc/merc_io/struct.DumpFiles.html) utility from the [`merc_io`](https://mercorg.github.io/merc/merc_io/index.html) crate, which can be helpful for
 debugging failing tests. These files are not written by default, but that can be
 enabled with the `MERC_DUMP=<absolute-path>` environment variable, which
 specifies the directory to write the files to.

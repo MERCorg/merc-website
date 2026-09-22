@@ -8,9 +8,12 @@ code path to walk instead of one special case per surface construct.
 
 A `struct` declaration is desugared into an abstract sort plus its
 constructors, recognisers, and projection functions. The defining equations
-(recognisers, projections, and the `==`/`<`/`<=` orderings) are generated into
-the [system-defined specification](system-specification.md) that accompanies
-the user's specification, following Appendix B.10 of the book.
+(recognisers, projections, and the `==`/`<`/`<=`/`less_total` orderings) are
+generated into the [system-defined specification](system-specification.md)
+that accompanies the user's specification, following Appendix B.10 of the
+book. `<` is already total over a `struct`'s own constructors (lexicographic
+on equal constructors, by constructor index otherwise), so `less_total` just
+reuses it there rather than generating a second copy of the same equations.
 
 ### Anonymous structs
 

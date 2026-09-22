@@ -16,7 +16,7 @@
 ```
 # On-the-fly and partial solving
 
-`merc_vpg`'s symbolic solver is based on the paper:
+[`merc_vpg`](https://mercorg.github.io/merc/merc_vpg/index.html)'s symbolic solver is based on the paper:
 
 > Maurice Laveaux, Wieger Wesselink, Tim A.C.
 Willemse, *On-The-Fly Solving for Symbolic Parity Games*, TACAS 2022, LNCS
@@ -45,7 +45,7 @@ folding $I$ into every control-predecessor and attractor computation, per
 each derivation marks with a `// safety: …` comment the one place this
 folding happens.
 
-## `safe_α`: the α-safe vertex set
+## The α-safe vertex set
 
 **Definition 4.** For $\G = (G, I)$:
 
@@ -62,7 +62,7 @@ escape. Theorem 1 shows this is the *largest* such set: solving inside it is
 sound against every future extension of $\G$ (Lemma 1), and any dominion
 reaching outside it is not (Lemma 2/Corollary 1).
 
-`safe_vertices` ports this with one addition beyond the literal formula:
+The implementation ports this with one addition beyond the literal formula:
 
 ```math
 \begin{algorithmic}[1]
@@ -81,17 +81,16 @@ every *structural* sink of `incomplete` too, not only the `opponent`-owned
 incomplete vertices Definition 4 literally names. An unexplored vertex has no
 discovered successors yet regardless of who owns it, so without this term an
 `alpha`-owned incomplete vertex with no known outgoing edges could stay
-inside the returned safe set — and `partial_solve`, the one solver that runs
-a plain `zielonka` over this set (below), assumes totality. The extra term is
-what keeps the safe subgame actually total whenever `incomplete` is
-non-empty; mCRL2's own `compute_safe_vertices` does the same for the same
-reason, so this is not a merc-specific strengthening of Definition 4, just
-its operational form.
+inside the returned safe set — and partial solving, the one solver that runs a
+plain Zielonka over this set (below), assumes totality. The extra term is what
+keeps the safe subgame actually total whenever `incomplete` is non-empty;
+mCRL2's own implementation does the same for the same reason, so this is not a
+merc-specific strengthening of Definition 4, just its operational form.
 
-## The safe attractor: `spre_α` and `SAttr_α`
+## The safe attractor
 
 Computing $\safe\alpha$ (an extra full attractor fixed point) is only worth
-doing when a solver actually needs the *subgame* itself, as `partial_solve`
+doing when a solver actually needs the *subgame* itself, as partial solving
 does. The other three solvers below only ever need attractors, never the
 subgame, so §4.1 gives them a *safe* control-predecessor that folds the
 incomplete set directly into $\cpre_\alpha$ instead, without ever
@@ -117,10 +116,10 @@ is what lets every solver below use $\spre_\alpha/\SAttr_\alpha$ freely in
 place of $\cpre_\alpha/\Attr_\alpha$ and stay just as sound as if it had
 first restricted itself to $\safe\alpha$.
 
-`control_predecessors` and `attractor` implement $\spre_\alpha/\SAttr_\alpha$
-directly, with `incomplete` threaded through as an ordinary parameter — the
-one line in each that differs from plain $\cpre_\alpha/\Attr_\alpha$ is
-marked:
+The `ControlPredecessors` and `Attractor` routines below implement
+$\spre_\alpha/\SAttr_\alpha$ directly, with `incomplete` threaded through as an
+ordinary parameter — the one line in each that differs from plain
+$\cpre_\alpha/\Attr_\alpha$ is marked:
 
 ```math
 \begin{algorithmic}[1]
@@ -155,12 +154,11 @@ marked:
 ```
 
 With `incomplete = ∅` the marked line vanishes and this is exactly plain
-$\cpre_\alpha/\Attr_\alpha$ — `safe_vertices` above calls it that way on
-purpose, since Definition 4 wants the ordinary attractor, not the safe one.
-`compute_total_graph`'s two calls to `attractor` (one per player, over the
-already-resolved `winning` sets) and `monotone_attractor`'s inner loop
-(below) both go through this same pair of functions with the real
-`incomplete` set.
+$\cpre_\alpha/\Attr_\alpha$ — `SafeVertices` above calls it that way on purpose,
+since Definition 4 wants the ordinary attractor, not the safe one.
+`ComputeTotalGraph`'s two attractor calls (one per player, over the
+already-resolved `winning` sets) and `MonotoneAttractor`'s inner loop (below)
+both go through this same pair with the real `incomplete` set.
 
 ## Two things the paper calls "safe"
 
@@ -168,28 +166,28 @@ The paper uses "safe" for two related but distinct constructions, and the
 ambiguity is inherited from it, not a documentation accident:
 
 - the **$\alpha$-safe vertex set** $\safe\alpha$ (Definition 4,
-  `safe_vertices`) — a *subgame*, a subset of $V$, obtained by one extra
+  `SafeVertices`) — a *subgame*, a subset of $V$, obtained by one extra
   attractor fixed point;
 - the **safe control predecessor/attractor** (§4.1, $\spre_\alpha/\SAttr_\alpha$,
-  `control_predecessors`/`attractor` above) — folding $I$ into every step so
+  `ControlPredecessors`/`Attractor` above) — folding $I$ into every step so
   that no subgame ever needs to be materialised.
 
 Lemma 4 is what makes the choice between them purely about what a given
-solver already needs, not a soundness trade-off: `partial_solve` below hands
-a plain, unrestricted `zielonka` an entire subgame to work on, so it needs
+solver already needs, not a soundness trade-off: partial solving below hands a
+plain, unrestricted Zielonka an entire subgame to work on, so it needs
 $\safe\alpha$ materialised regardless and uses the first form directly; the
 three cycle/attractor solvers after it never need anything but attractors, so
 they use $\spre_\alpha/\SAttr_\alpha$ and skip the extra fixed point
 entirely.
 
-## `partial_solve`
+## Partial solving
 
-Port of mCRL2's `partial_solve`. This is the entry point that actually drives
-solving on the fly: it is called again after each round of exploration
-shrinks `incomplete`, and returns as soon as `initial_vertex` is decided —
-at which point exploration itself can stop, whatever fraction of the game
-remains unexplored. Internally it runs a plain `zielonka` restricted to each
-player's own safe subgame in turn:
+Port of mCRL2's own partial solver. This is the entry point that actually
+drives solving on the fly: it is called again after each round of exploration
+shrinks `incomplete`, and returns as soon as the initial vertex is decided — at
+which point exploration itself can stop, whatever fraction of the game remains
+unexplored. Internally it runs a plain Zielonka restricted to each player's own
+safe subgame in turn:
 
 ```math
 \begin{algorithmic}[1]
@@ -214,12 +212,12 @@ player's own safe subgame in turn:
 \end{algorithmic}
 ```
 
-`zielonka` here is called on `safe_even`/`safe_odd` directly — no
+Zielonka here is called on the two safe subgames directly — no
 $\spre_\alpha$ involved, since safety was already spent building the safe
 subgame itself, per the previous section; the recursion inside runs exactly
 as in [Zielonka's algorithm](zielonka.md), unmodified.
 
-## `detect_solitair_cycles`
+## Solitaire cycles
 
 A solitaire cycle is a set $U$, entirely owned by one player $\alpha$, at
 $\alpha$'s own priority parity, where every vertex has an edge staying inside
@@ -234,7 +232,7 @@ C_{sol}^\alpha(\G) = \nu Z.\, (P_\alpha \cap V_\alpha \cap \mathrm{pre}(\G, Z))
 $$
 ```
 
-`detect_solitair_cycles`:
+In pseudocode:
 
 ```math
 \begin{algorithmic}[1]
@@ -256,10 +254,10 @@ $$
 The cycle search itself never asks who controls anything — a solitaire cycle
 is entirely $\alpha$'s own vertices at her own priority, so there is no
 adversary move to account for, and plain $\mathrm{pre}$ suffices. Safety
-enters exactly once, in `accept_cycle` (shared with `detect_forced_cycles`
-below), which records $U$ as won (with an overapproximate `merge(U, U)`
-strategy, later cut down to real edges by `apply_strategy`) and closes it off
-with a safe attractor:
+enters exactly once, in `AcceptCycle` (shared with the forced-cycle solver
+below), which records $U$ as won — with an overapproximate strategy, later cut
+down to real edges when the strategy is applied — and closes it off with a safe
+attractor:
 
 ```math
 \begin{algorithmic}[1]
@@ -270,7 +268,7 @@ with a safe attractor:
 \end{algorithmic}
 ```
 
-## `detect_forced_cycles`
+## Forced cycles
 
 Generalises solitaire cycles to mixed-owner cycles: $U$ may include
 $\bar\alpha$-owned vertices too, as long as $\bar\alpha$ has no edge that
@@ -293,9 +291,9 @@ C_{s\text{-}for}^\alpha(\G) = \nu Z.\, (P_\alpha \cap \spre_\alpha(\G, Z)) \;=\;
 $$
 ```
 
-`detect_forced_cycles` implements the right-hand side directly — the form
-that avoids the subgame — through `control_predecessors_within`
-(`control_predecessors` with `outside = v \ u`):
+The solver implements the right-hand side directly — the form that avoids the
+subgame — through `ControlPredecessorsWithin`, which is `ControlPredecessors`
+with `outside = v \ u`:
 
 ```math
 \begin{algorithmic}[1]
@@ -318,7 +316,7 @@ By Proposition 2 this reaches the same $U$ that restricting to $\safe\alpha$
 and using plain $\cpre_\alpha$ would; it just never pays for $\safe\alpha$ to
 get there.
 
-## `detect_fatal_attractors`
+## Fatal attractors
 
 Fatal attractors (Huth, Kuo, Piterman, FOSSACS 2013) find, for each priority
 $c$, a set of priority-$c$ vertices that $\alpha$ (the player owning priority
@@ -348,9 +346,9 @@ F_s^\alpha(\G, c) = \nu Z.\, (P_{=c} \cap \sMAttr_\alpha(\G, Z, c)) \;=\; F^\alp
 $$
 ```
 
-`detect_fatal_attractors` implements $F_s^\alpha$: $\Mcpre_\alpha/\MAttr_\alpha$
-become `monotone_attractor`, which folds `incomplete` into its inner
-`control_predecessors` call exactly as `attractor` does above:
+The solver implements $F_s^\alpha$: $\Mcpre_\alpha/\MAttr_\alpha$ become
+`MonotoneAttractor`, which folds `incomplete` into its inner
+`ControlPredecessors` call exactly as `Attractor` does above:
 
 ```math
 \begin{algorithmic}[1]

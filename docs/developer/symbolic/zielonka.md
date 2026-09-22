@@ -14,10 +14,10 @@ here has a complete graph to work with.
 
 ## Priority direction: max-parity vs min-parity
 
-merc's `Priority` is a **max-parity** encoding: the outermost fixpoint block gets the *largest*
-priority, `Player::from_priority(p) == Even` iff `p` is even, and the explicit `solve_zielonka`
-picks the highest priority present. mCRL2's symbolic solver is **min-parity**: the outermost block
-gets rank 0, and `get_min_rank` picks the smallest, with `alpha = m % 2`.
+merc's [`Priority`](https://mercorg.github.io/merc/merc_vpg/type.Priority.html) is a **max-parity** encoding: the outermost fixpoint block gets the *largest*
+priority, a priority `p` belongs to Even exactly when `p` is even, and the solver picks the highest
+priority present. mCRL2's symbolic solver is **min-parity**: the outermost block gets rank 0, and
+it picks the smallest rank instead, with `alpha = m % 2`.
 
 ## The recursive algorithm
 
@@ -33,7 +33,7 @@ more attractor and one more recursive call are needed to correctly attribute tha
     \State \Return $(\emptyset, \emptyset)$
   \EndIf
   \State $d \gets \max\{\mathrm{priority}(v) \mid v \in V\}$ \Comment{highest priority present (max-parity, see above)}
-  \State $\alpha \gets \textsc{Player::from\_priority}(d)$
+  \State $\alpha \gets \Call{PlayerOfPriority}{d}$
   \State $U \gets \{v \in V \mid \mathrm{priority}(v) = d\}$
   \State $A \gets \Attr_\alpha(\G, U)$ \Comment{safety: on-the-fly, $\Attr_\alpha$ here is $\SAttr_\alpha$, folding in the incomplete set --- see partial-solving.md}
   \State $(W_0', W_1') \gets \Call{Zielonka}{\G \setminus A}$
@@ -60,7 +60,7 @@ that is still being explored.
 ## Strategy representation
 
 A strategy is an LDD over the doubled, interleaved state vector `[from₀, to₀, from₁, to₁, …]` —
-the same layout the edge relations use. `apply_strategy` projects the strategy onto
+the same layout the edge relations use. Applying a strategy projects it onto
 `2*read_idx`/`2*write_idx+1` and intersects it with each group's relation, which is why the layout
 is not free to choose: any other layout would need a translation step in the innermost loop of the
-only consumer. `merge` builds this interleaved cartesian product.
+only consumer. A dedicated merge operation builds this interleaved cartesian product.

@@ -11,7 +11,7 @@ construction is based on
 
 ## Goals, obligations, announcements
 
-Every state of the automaton carries a set of `MatchGoal`s — one per rewrite
+Every state of the automaton carries a set of [`MatchGoal`](https://mercorg.github.io/merc/merc_sabre/set_automaton/match_goal/struct.MatchGoal.html)s — one per rewrite
 rule that could still fire from here:
 
 ```rust
@@ -42,13 +42,13 @@ pub struct MatchAnnouncement {
   off once the automaton has actually distinguished this rule from its
   neighbours (see below).
 
-Building the automaton is a fixpoint computation over states. For a state
-and a head symbol, `State::compute_derivative` sorts each of the state's
-goals into:
+Building the automaton is a fixpoint computation over states. For a state and
+a head symbol, the derivative computation sorts each of the state's goals
+into:
 
 - **completed** — the one remaining obligation *is* the symbol at this
   position, with only variables below it. The goal becomes an output
-  (`Transition::announcements`) rather than part of any destination state.
+  ([`Transition::announcements`](https://mercorg.github.io/merc/merc_sabre/set_automaton/automaton/struct.Transition.html#structfield.announcements)) rather than part of any destination state.
 - **discarded** — an obligation at this position expects a *different* head
   symbol. Dead end, dropped.
 - **unchanged** — no obligation is pinned to this position at all; the goal
@@ -64,14 +64,13 @@ this transition leads to.
 
 A single transition doesn't have to lead to one destination. Goals whose
 remaining obligations sit under disjoint subtrees can be split across several
-independent destinations — doing so lets
-[`MatchGoal::greatest_common_prefix`](https://github.com/MERCorg/merc/blob/main/crates/sabre/src/set_automaton/match_goal.rs)
-factor a longer common position prefix out of each group, which keeps that
+independent destinations — doing so lets the greatest common prefix of each
+group factor a longer common position prefix out, which keeps that
 destination's label (and thus how much lookahead is needed before the
 automaton can say anything useful) tighter.
 
-`MatchGoal::partition` groups goals by whether their *announcement*
-positions are "comparable" — one a prefix of the other:
+Partitioning groups goals by whether their *announcement* positions are
+"comparable" — one a prefix of the other:
 
 ```rust
 /// Checks for two positions whether one is a subposition of the other.
@@ -79,10 +78,10 @@ positions are "comparable" — one a prefix of the other:
 pub fn pos_comparable(p1: &DataPosition, p2: &DataPosition) -> bool
 ```
 
-`pos_comparable` treats the *empty* position as comparable to anything — it
+[`pos_comparable`](https://mercorg.github.io/merc/merc_sabre/set_automaton/match_goal/struct.MatchGoal.html#method.pos_comparable) treats the *empty* position as comparable to anything — it
 returns `true` the moment either position runs out of indices to compare. At
 the very start of a match, before any rule has been distinguished from its
-siblings, every goal's announcement position is still `ε`; `partition`
+siblings, every goal's announcement position is still `ε`; the partition step
 special-cases this ("if one of the goals has a root position, all goals are
 related") and puts everything in one group. That's correct and cheap: it
 happens once, doesn't recurse, and doesn't grow.
@@ -90,19 +89,19 @@ happens once, doesn't recurse, and doesn't grow.
 Separately, a transition also introduces *fresh* subtrees — the argument
 positions the head symbol's arity adds — each of which gets one brand-new
 goal per rewrite rule, since that rule's pattern hasn't been looked at down
-there yet. `State::derive_transition` has to decide, for each fresh position,
-whether it belongs with one of `partition`'s existing groups or needs a
-destination of its own. **This decision is where a real bug lived**, fixed
+there yet. Deriving the transition has to decide, for each fresh position,
+whether it belongs with one of the existing groups or needs a destination of
+its own. **This decision is where a real bug lived**, fixed
 after being exposed by the machine-word work.
 
 ## The partition-merge bug
 
 Until this fix, the fresh-subtree decision reused the same
-announcement-position comparison `partition` uses internally — testing a
+announcement-position comparison the partition step uses internally — testing a
 fresh position against the deduplicated announcement positions of each
 group. That's unsound as a *repeated* test, because an announcement position
 only shortens once every member of its group shares a longer common prefix,
-and `greatest_common_prefix` forces that common length to `0` the instant
+and the common-prefix computation forces that common length to `0` the instant
 *any* member — announcement or obligation — is already sitting at `ε`. So a
 group containing even one still-open, root-anchored goal keeps announcement
 position `ε` pinned indefinitely, at every state reachable while that goal
@@ -110,7 +109,7 @@ survives, not only at the very first step. Since `pos_comparable(ε, _)` is
 always `true`, such a group absorbed *every* fresh subtree from then on,
 splicing in a fresh copy of every rewrite rule each time — so the state it
 produced never matched one already built, the construction's worklist never
-drained, and `SetAutomaton::new` never returned.
+drained, and building the automaton never returned.
 
 ### A worked example: `+` on machine-word `Pos`
 
@@ -146,7 +145,7 @@ each equation into a goal with one obligation per non-variable argument:
 | succ + * | `@succ_pos(p1)` | *(none — `p2` is a bare variable)* |
 | * + succ | *(none — `p1` is a bare variable)* | `@succ_pos(p2)` |
 
-All six goals still announce at `ε`, so `partition`'s root special case puts
+All six goals still announce at `ε`, so [`partition`](https://mercorg.github.io/merc/merc_sabre/set_automaton/match_goal/struct.MatchGoal.html#method.partition)'s root special case puts
 them in one group — correct so far, the same one-time special case described
 above. Now follow one branch: the construction tries symbol `@succ_pos` at
 position 1. For the four digit-based goals this is a mismatch (discarded).
@@ -170,8 +169,8 @@ the construction discovers a fresh subtree belonging to some *other*
 equation whose own obligation happens to sit at the sibling position. The
 old code decided whether to fold that fresh subtree into an existing group
 by testing it against the group's **announcement** positions, and a group
-holding one of these lopsided goals still announces at `ε` — because
-`greatest_common_prefix` can't produce a common prefix longer than `ε` while
+holding one of these lopsided goals still announces at `ε` — because the
+common-prefix computation can't produce a common prefix longer than `ε` while
 one member constrains position 1 and nothing else in that partition
 constrains position 1 at all. Since `pos_comparable(ε, anything)` is always
 `true`, such a group is a standing invitation: the next fresh subtree the
@@ -186,9 +185,8 @@ worklist never drained.
 
 ### Why this doesn't happen with the ordinary binary rules
 
-The `Binary` encoding's `Pos` addition — `@addc` in
-[`pos.mcrl2`](https://github.com/MERCorg/merc/blob/main/crates/syntax/spec/pos.mcrl2) —
-has equations with the same superficial shape (`@addc(false,@c1,p) = succ(p)`
+The `Binary` encoding's `Pos` addition — `@addc` in the bundled `pos.mcrl2`
+template — has equations with the same superficial shape (`@addc(false,@c1,p) = succ(p)`
 leaves `p` unconstrained, just like `@succ_pos(p1) + p2` does above), so a
 transient `ε`-glued group can form there too. What it doesn't have is a
 *second* representation to keep re-triggering that shape. `Pos`'s
@@ -226,8 +224,8 @@ for goal in &group {
 This is sound where the announcement-position version wasn't, because
 obligations reaching this point are never empty by construction — a goal
 with no obligations left is classified as *completed* and diverted to the
-transition's announcements before this code ever sees it
-(`compute_derivative` asserts exactly this). So `ε` only turns up among
+transition's announcements before this code ever sees it (the derivative
+computation asserts exactly this). So `ε` only turns up among
 obligation positions when a rule's pattern is *genuinely* still anchored at
 the root — real, load-bearing overlap — never as a leftover from a rule that
 was simply matched once, long ago, and never revisited. A fresh subtree now

@@ -77,8 +77,7 @@ nothing but bookkeeping. `merc`'s `Bsgs` instead builds a **Schreier–Sims
 base**: at each level, $\beta_i$ is chosen as the smallest point some
 generator of $G_{i-1}$ actually moves, and the recursion stops once no
 generator moves anything. Positions the group fixes at that depth never get a
-`SchreierLevel` at all — `Bsgs::chain` only holds points that genuinely
-branch.
+`SchreierLevel` at all — the chain only holds points that genuinely branch.
 
 This is the actual size reduction: no orbit-transversal BFS, no Schreier
 generators, no `HashMap`-backed transversal is ever built for a fixed point.
@@ -90,7 +89,7 @@ irrelevant, which is only sometimes true (see below).
 
 ## The optimised pseudocode
 
-`Bsgs::canonicalize` walks $j = 0, \dots, n-1$ against the compressed chain.
+Canonicalization walks $j = 0, \dots, n-1$ against the compressed chain.
 At a real base point it does what the report's loop does. Everywhere else, it
 reconstructs that loop's filtering effect by hand, without the singleton
 transversal ever being materialized:

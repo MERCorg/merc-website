@@ -96,10 +96,9 @@ rules would catch.
 Concretely, the gap is large enough to matter well before numbers get large:
 the bundled end-to-end tests record `sqrt(65535) * sqrt(65535) <= 65535`
 taking roughly 20 s to rewrite under the binary encoding against roughly
-0.4 s under the machine-word one. Both encodings remain available —
-`merc` exposes the choice as
-[`NumberEncoding`](https://github.com/MERCorg/merc/blob/main/crates/typecheck/src/number_encoding.rs)
-(`Binary` or `MachineWord`) — because the right trade-off depends on what a
+0.4 s under the machine-word one. Both encodings remain available — `merc`
+exposes the choice as a [`NumberEncoding`](https://mercorg.github.io/merc/merc_typecheck/enum.NumberEncoding.html) setting ([`Binary`](https://mercorg.github.io/merc/merc_typecheck/enum.NumberEncoding.html#variant.Binary) or [`MachineWord`](https://mercorg.github.io/merc/merc_typecheck/enum.NumberEncoding.html#variant.MachineWord)) —
+because the right trade-off depends on what a
 specification is being used for: the binary encoding when trusting the
 arithmetic to be exactly what the equations say matters most, the
 machine-word encoding when the specification's numbers are large or its

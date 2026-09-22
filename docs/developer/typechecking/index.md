@@ -13,24 +13,11 @@ name, decides the sort of every expression, chooses between overloaded
 operators, and inserts the implicit coercions that the surface language leaves
 out (such as reading a natural number where a real number is expected).
 
-Rather than performing all of this in one recursive traversal, merc splits type
-checking into a **pipeline of phases**, each with a well-defined input and
-output. The architecture is *query-based* in the style of the Rust compiler:
-each derived fact — the signature of a specification, the sort denoted by a
-declaration, the typing of an equation — is a memoized query on a shared
-`TypeckContext`, so phases pull their dependencies lazily and every fact is
-computed at most once. Cyclic definitions (a sort alias that refers to itself,
-say) are detected through the memoization table's lock state instead of running
-away into unbounded recursion.
+The entry point builds a [`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.DataSpecification.html) from the untyped [`merc_syntax`](https://mercorg.github.io/merc/merc_syntax/index.html) AST
+produced by the parser. Rather than performing all of this in one recursive
+traversal, we split type checking into a **pipeline of phases**, each with a
+well-defined input and output, see the phases below.
 
-!!! question "Is the per-query memoization worth its complexity?"
-    Not a settled question. Several passes already walk the full AST to
-    perform other syntactic operations, so it is not yet clear how much the
-    per-query memoization saves over simply recomputing facts during one of
-    those existing traversals, versus what it costs in bookkeeping.
-
-The entry point is `DataSpecification::from_untyped`, which takes the untyped
-`merc_syntax` AST produced by the parser and runs the phases below.
 
 ## Overview
 
@@ -73,11 +60,11 @@ The entry point is `DataSpecification::from_untyped`, which takes the untyped
 
 </div>
 
-The guiding idea is a **split representation**. During type checking sorts are
-interned indices into a standalone arena, so equality is a single integer
-comparison and typings live in compact side tables keyed by expression id. Only
-the final lowering phase produces the maximally shared aterm representation that
-the rest of merc (`merc_sabre`, `merc_explore`) consumes.
+During type checking sorts are interned indices into a standalone arena, so
+equality is a single integer comparison and typings live in compact side tables
+keyed by expression id. Only the final lowering phase produces the maximally
+shared aterm representation that the rest of merc ([`merc_sabre`](https://mercorg.github.io/merc/merc_sabre/index.html), [`merc_explore`](https://mercorg.github.io/merc/merc_explore/index.html))
+consumes.
 
 ## Contents
 
@@ -88,13 +75,12 @@ specification kind built on top of them:
    resolution, alias-cycle checks, and canonicalization.
  - **[Desugaring](desugaring.md)** — Phase 1: structured sorts to
    constructors/recognisers/projections, built-in operators to applications.
- - **[Signature & Well-Typedness](signature.md)** — Phase 2: the
-   $(S, C, M)$ triple and Definition 15.1.7's well-typedness conditions.
+ - **[Signature & Well-Typedness](signature.md)** — Phase 2: the $(S, C, M)$
+   triple and well-typedness conditions.
  - **[The System-Defined Specification](system-specification.md)** —
    Appendix B's standard data types, why they're checked apart from the
    user's own declarations, and how a system equation is type checked
-   against a deliberately narrower, group-scoped view of the polymorphic
-   built-ins.
+   against a deliberately narrower view of the polymorphic built-ins.
  - **[Source Maps, Imports & Virtual Templates](spec-includes.md)** — the
    shared `SourceMap` byte-offset space, `%import` file composition, and how
    generated system-defined content gets real, renderable declaration spans.

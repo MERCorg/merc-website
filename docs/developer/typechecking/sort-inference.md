@@ -26,9 +26,9 @@ of:
   `v` it resolves to — see [Type Variables & Polymorphic
   Schemes](polymorphism.md). It only ever appears inside a *scheme*'s own
   interned sort (a container/function-update template, or the comparison/`if`
-  schemes), never in an ordinary equation's inferred sort: `instantiate_scheme`
-  replaces every `Var` with a fresh unification variable before a scheme
-  reaches the constraint generator.
+  schemes), never in an ordinary equation's inferred sort: instantiating a
+  scheme replaces every `Var` with a fresh unification variable before that
+  scheme reaches the constraint generator.
 
 Because sorts are **interned**, each distinct sort is stored once and two
 sorts are equal exactly when their indices are equal — a sort comparison is a

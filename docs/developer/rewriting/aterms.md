@@ -40,9 +40,8 @@ capacity that threads count down as they insert new terms.
 
 ## The Term Trait
 
-The `Term` trait, shown below in simplified form (the real trait declares
-`protect`, `arg`, `arguments`, `copy`, `get_head_symbol`, `iter`, `index` and
-`shared`), is the central trait for the ATerm library, allowing functions to be
+The [`Term`](https://mercorg.github.io/merc/merc_aterm/trait.Term.html) trait, shown below in simplified form — the real trait declares
+several more accessors — is the central trait for the ATerm library, allowing functions to be
 defined on generic terms, either owned or borrowed.
  
 ``` rust
@@ -223,10 +222,9 @@ such wrapper repeats the same owned/borrowed split described above.
 
 ### Declaring a wrapper
 
-A module annotated with `#[merc_derive_terms]` may contain one or more
-structs annotated with `#[merc_term(assertion)]`, each with a field named
-`term` of type `ATerm`. `crates/data/src/data_expression.rs` declares
-`DataFunctionSymbol` this way:
+A module annotated with [`#[merc_derive_terms]`](https://mercorg.github.io/merc/merc_macros/attr.merc_derive_terms.html) may contain one or more
+structs annotated with [`#[merc_term(assertion)]`](https://mercorg.github.io/merc/merc_macros/attr.merc_term.html), each with a field named
+`term` of type [`ATerm`](https://mercorg.github.io/merc/merc_aterm/struct.ATerm.html). The data crate declares [`DataFunctionSymbol`](https://mercorg.github.io/merc/merc_data/struct.DataFunctionSymbol.html) this way:
 
 ```rust
 #[merc_derive_terms]
@@ -277,10 +275,10 @@ which is where all of the code generation happens.
 
 ### What gets generated
 
-For the `DataFunctionSymbol` declaration above, `#[merc_derive_terms]` generates
+For the [`DataFunctionSymbol`](https://mercorg.github.io/merc/merc_data/struct.DataFunctionSymbol.html) declaration above, [`#[merc_derive_terms]`](https://mercorg.github.io/merc/merc_macros/attr.merc_derive_terms.html) generates
 (trimmed to the parts described in [Protected and Borrowed
-Terms](#protected-and-borrowed-terms); see `merc_derive_terms.rs` for the
-literal `quote!` template):
+Terms](#protected-and-borrowed-terms); the macro crate holds the literal
+`quote!` template):
 
 ```rust
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -354,44 +352,42 @@ Every other `#[merc_term]`-annotated struct in the module — `DataVariable`,
 `DataWhrDecl`, `DataWhereClause`, and `DataExpression` itself — expands the
 same way, only the type name and the assertion predicate change.
 
-The `Transmutable` impl on `DataFunctionSymbolRef<'static>` is what lets
-`Protected<C>` (`crates/aterm/src/protected.rs`), a garbage-collector-rooted
-container generic over any `C: Markable + Send + Sync + Transmutable +
-'static`, store collections of typed wrappers — not just raw `ATermRef`s — and
+The [`Transmutable`](https://mercorg.github.io/merc/merc_aterm/trait.Transmutable.html) impl on [`DataFunctionSymbolRef<'static>`](https://mercorg.github.io/merc/merc_data/struct.DataFunctionSymbolRef.html) is what lets
+[`Protected<C>`](https://mercorg.github.io/merc/merc_aterm/struct.Protected.html), a garbage-collector-rooted container generic over any `C: Markable + Send + Sync + Transmutable +
+'static`, store collections of typed wrappers — not just raw [`ATermRef`](https://mercorg.github.io/merc/merc_aterm/struct.ATermRef.html)s — and
 hand back a correctly shortened lifetime through
-`ProtectedReadGuard`/`ProtectedWriteGuard` on every access.
+[`ProtectedReadGuard`](https://mercorg.github.io/merc/merc_aterm/struct.ProtectedReadGuard.html)/[`ProtectedWriteGuard`](https://mercorg.github.io/merc/merc_aterm/struct.ProtectedWriteGuard.html) on every access.
 
 ### Duplicating accessors onto the `..Ref` type, and `#[merc_ignore]`
 
 For *every* `impl` block in the module that is not opted out (see below), the
 macro also emits a clone of that block with the self type rewritten to
 `..Ref<'_>`, so read-only accessors work
-directly on a borrowed term without protecting it first — `name()`, `sort()`,
-and `operation_id()` become callable on a `DataFunctionSymbolRef<'_>` for free,
-with no extra code in `data_expression.rs`. This applies to trait impls just as
+directly on a borrowed term without protecting it first — [`name()`](https://mercorg.github.io/merc/merc_data/struct.DataFunctionSymbol.html#method.name) and
+[`sort()`](https://mercorg.github.io/merc/merc_data/struct.DataFunctionSymbol.html#method.sort) above become callable on a [`DataFunctionSymbolRef<'_>`](https://mercorg.github.io/merc/merc_data/struct.DataFunctionSymbolRef.html) for free, with
+no extra code of its own. This applies to trait impls just as
 much as to inherent ones: `impl fmt::Display for DataFunctionSymbol` is what
-gives `DataFunctionSymbolRef<'_>` its `Display`, which is why
-`DataExpression`'s own `Display` can print a borrowed head symbol without
+gives [`DataFunctionSymbolRef<'_>`](https://mercorg.github.io/merc/merc_data/struct.DataFunctionSymbolRef.html) its `Display`, which is why
+[`DataExpression`](https://mercorg.github.io/merc/merc_data/struct.DataExpression.html)'s own `Display` can print a borrowed head symbol without
 protecting it.
 
 That duplication is not always sound or even meaningful. A function that
-protects a brand-new term and returns it by value, like
-`DataFunctionSymbol::new` or `DataFunctionSymbol::with_sort`, has no sensible
-borrowed counterpart — there is no existing term to borrow from — so it is
-tagged `#[merc_ignore]` and excluded, either for a whole `impl` block or for
-individual functions within one that is otherwise duplicated.
-`DataExpression::data_arguments` is the latter case: it is `#[merc_ignore]`d
-inside the otherwise-duplicated `impl DataExpression` block and instead
-hand-written again, directly, for `DataExpressionRef` later in
-`data_expression.rs`, because the iterator it returns needs a signature tied to
-`DataExpressionRef`'s own `'a` rather than to a fresh borrow of `&self`.
+protects a brand-new term and returns it by value, like the [`new`](https://mercorg.github.io/merc/merc_data/struct.DataFunctionSymbol.html#method.new) above, has no
+sensible borrowed counterpart — there is no existing term to borrow from — so
+it is tagged [`#[merc_ignore]`](https://mercorg.github.io/merc/merc_macros/attr.merc_ignore.html) and excluded, either for a whole `impl` block or
+for individual functions within one that is otherwise duplicated. An accessor
+returning an iterator over a [`DataExpression`](https://mercorg.github.io/merc/merc_data/struct.DataExpression.html)'s arguments is the latter case:
+it is [`#[merc_ignore]`](https://mercorg.github.io/merc/merc_macros/attr.merc_ignore.html)d inside the otherwise-duplicated `impl DataExpression`
+block and instead hand-written again, directly, for [`DataExpressionRef`](https://mercorg.github.io/merc/merc_data/struct.DataExpressionRef.html) later
+in the same module, because the iterator it returns needs a signature tied to
+[`DataExpressionRef`](https://mercorg.github.io/merc/merc_data/struct.DataExpressionRef.html)'s own `'a` rather than to a fresh borrow of `&self`.
 
 Because the rewrite is purely textual, the self type has to be a bare
 identifier: `impl<T> Foo<T>` or `impl some::path::Foo` are rejected with a
 `compile_error!` pointing at `#[merc_ignore]` as the escape hatch. The same
 escape hatch is needed for anything in the module that is *not* a term wrapper
-— `sort_terms.rs` marks `impl ContainerSortKind` (a plain enum) with
-`#[merc_ignore]`, since there is no `ContainerSortKindRef` to duplicate it
+— the sort-term module marks [`impl ContainerSortKind`](https://mercorg.github.io/merc/merc_data/enum.ContainerSortKind.html) (a plain enum) with
+[`#[merc_ignore]`](https://mercorg.github.io/merc/merc_macros/attr.merc_ignore.html), since there is no `ContainerSortKindRef` to duplicate it
 onto.
 
 ### From the concrete type up to `DataExpression`, and back down

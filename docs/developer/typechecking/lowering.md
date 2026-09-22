@@ -2,15 +2,14 @@
 
 Phase 4, the final phase of the pipeline, walks the typed representation
 produced by [sort inference](sort-inference.md) and emits aterm
-`merc_data::DataExpression`s, materializing the implicit coercions as explicit
+[`merc_data::DataExpression`](https://mercorg.github.io/merc/merc_data/struct.DataExpression.html)s, materializing the implicit coercions as explicit
 function applications: numeric up-casts become the Appendix-B constructor
 chains, and finite-to-unbounded container widenings become the corresponding
 set/bag constructors. Number literals are lowered to their exact Appendix-B
 constructor chains via arbitrary-precision binary encoding, and all binders
 (`lambda`, `forall`/`exists`, set/bag comprehensions, `where`) are lowered too.
-`DataSpecification::lower_data_specification` assembles the full
-`Mcrl2DataSpecification` — user sorts, aliases, constructors, mappings and
-equations, followed by the system-defined declarations and equations.
+The phase assembles the full [`Mcrl2DataSpecification`](https://mercorg.github.io/merc/merc_data/struct.Mcrl2DataSpecification.html) — user sorts, aliases,
+constructors, mappings and equations, followed by the system-defined declarations and equations.
 
 For a polymorphic container/function-update operation, lowering recovers the
 concrete operation from the operator name together with the sort that
@@ -26,19 +25,19 @@ pool is maximally shared, a symbol the checker constructs must be
 byte-for-byte identical to the same symbol read from a binary file, so that
 the two share one pooled term. Already-typed binary input therefore bypasses
 the checker entirely: both routes converge on the same
-`merc_data::Mcrl2DataSpecification`, and downstream code is oblivious to the
+[`merc_data::Mcrl2DataSpecification`](https://mercorg.github.io/merc/merc_data/struct.Mcrl2DataSpecification.html), and downstream code is oblivious to the
 provenance.
 
-Lowering is invoked *after* `from_untyped` rather than inside it, so callers
-that only need the typed intermediate representation pay nothing for the
-aterm lowering.
+Lowering is invoked *after* type checking rather than inside it, so callers
+that only need the typed intermediate representation pay nothing for the aterm
+lowering.
 
 ## Known divergences from the mCRL2 toolset
 
 merc's lowering matches the mCRL2 toolset's own C++ type checker term-for-term
 for the overwhelming majority of specifications. This is checked mechanically
-by `tools/mcrl2/crates/mcrl2/tests/lowering_conformance.rs`, which type checks
-and lowers the same specification with both checkers and asserts structural
+by a conformance test that type checks and lowers the same specification with
+both checkers and asserts structural
 (address) equality of the resulting aterms in the shared, maximally-shared
 aterm pool. Three cases are known to diverge, each in exactly one
 `user_defined_*` section; the round-trip test for each such specification is
@@ -47,9 +46,9 @@ everything else about the case stays guarded.
 
 ### Structured sorts
 
-merc's `desugar_structured_sorts` turns `sort D = struct …;` into an abstract
-sort `D` plus its constructor/recogniser/projection declarations, so `D`
-lands in the *sorts* section. The toolset instead keeps the declaration as an
+merc's [desugaring](desugaring.md) turns `sort D = struct …;` into an abstract
+sort `D` plus its constructor/recogniser/projection declarations, so `D` lands
+in the *sorts* section. The toolset instead keeps the declaration as an
 alias `D = SortStruct(…)` and leaves its sorts section empty. Every symbol
 the struct declares, and any equation using it, do conform — only the sorts
 section differs.
@@ -67,7 +66,8 @@ constructor and equation terms worth checking separately.
 
 ### Canonical sort representatives
 
-`normalize_sorts` erases alias names, and not only in the alias section
+[Normalization](name-resolution.md#normalization) erases alias names, and not
+only in the alias section
 (`sort B = A;` becomes `B = Nat` once `A = Nat`) — every *use* of the alias is
 expanded too, so a mapping declared as `C -> Bool` lowers with `List(Nat)`
 where the toolset keeps the name `C`:

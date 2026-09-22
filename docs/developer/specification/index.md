@@ -1,17 +1,17 @@
 # Specification Type Checking
 
 `DataSpecification` only ever covers the data language. Three specification
-kinds build on top of it: `ProcessSpecification` (a process algebra term),
-`PbesSpecification` (a parameterised boolean equation system), and
-`PresSpecification` (a parameterised *real* equation system). All three
-follow the same two-step shape: `from_untyped` first type checks the
-embedded [data specification](../typechecking/index.md) exactly
-as `DataSpecification::from_untyped_with` does, then **collects
-declarations** into a lookup table before checking anything that refers to
+kinds build on top of it: [`ProcessSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.ProcessSpecification.html) (a process algebra term),
+[`PbesSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.PbesSpecification.html) (a parameterised boolean equation system), and
+[`PresSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.PresSpecification.html) (a parameterised *real* equation system). All three
+follow the same two-step shape: each first type checks its embedded [data
+specification](../typechecking/index.md) exactly as a standalone
+[`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.DataSpecification.html) is checked, then **collects declarations** into a lookup
+table before checking anything that refers to
 them, and finally **type checks every expression** by walking the
 specification's bodies/equations and resolving each name and sort against
-those tables. Errors are reported as `ProcessError`/`PbesError`/`PresError`,
-each a superset of `WellTypedError`/`InferenceError`.
+those tables. Errors are reported as [`ProcessError`](https://mercorg.github.io/merc/merc_typecheck/enum.ProcessError.html)/[`PbesError`](https://mercorg.github.io/merc/merc_typecheck/enum.PbesError.html)/[`PresError`](https://mercorg.github.io/merc/merc_typecheck/enum.PresError.html),
+each a superset of [`WellTypedError`](https://mercorg.github.io/merc/merc_typecheck/enum.WellTypedError.html)/[`InferenceError`](https://mercorg.github.io/merc/merc_typecheck/enum.InferenceError.html).
 
 ## Collecting declarations
 
@@ -24,8 +24,8 @@ table so that later name resolution is a lookup rather than a search:
   argument sort or arity (mirroring `abp.mcrl2`'s `s3,r3,c3: D # Bool;
   s3,r3,c3: Error;` and `abp_bw.mcrl2`'s `S`, `S(b:Bit)`, `S(d:D,b:Bit)`), so
   the table has to support overload resolution rather than a single slot per
-  name. `DeclarationTables::build` rejects a specification that declares the
-  same name as both an action and a process outright
+  name. Building the tables rejects a specification that declares the same name
+  as both an action and a process outright
   (`ProcessError::ActionAndProcessConflict`) — such a name would make every
   use later permanently ambiguous between the two tables, with no way for an
   argument-sort check to break the tie. This means that by the time checking
@@ -97,10 +97,9 @@ un-swallowing a `Condition` — it never needs to know, and never determines,
 *which* of the two `name` refers to. So every `Action(name, args)` node,
 disambiguated or not, still carries this ambiguity into type checking, where
 it is resolved as described in [Collecting declarations](#collecting-declarations)
-and [Type checking all expressions](#type-checking-all-expressions) above:
-`check_action_or_process` (in `crate::process::process_specification` and
-`crate::process::check`) collects every arity-matching candidate across
-whichever single table actually declares `name` (a no-op chain on the side
+and [Type checking all expressions](#type-checking-all-expressions) above: the
+checker collects every arity-matching candidate across whichever single table
+actually declares `name` (a no-op chain on the side
 with no entry), type checks each candidate's arguments against its own
 declared domain, and requires *exactly one* to succeed — zero is an
 undeclared name, more than one is a genuine ambiguity the declarations
@@ -141,17 +140,15 @@ another leaf checked against `Real`:
 - `{Left,Right}ConstantMultiply { constant, expr }` (`val(...) * X` /
   `X * val(...)`) checks `constant` against `Real` and recurses into `expr`.
 - `Bound { op, variables, expr }` (`inf`/`sup`/`sum x: D . expr`) is
-  `PbesExprKind::Quantifier`'s counterpart: `pres/check.rs`'s `collect_scope`
-  resolves `variables`' declared sorts into the same flat, span-keyed `Scope`
-  `checking::collect_binder_sorts` builds for a PBES's `Quantifier` or a
-  process's `Sum`/`Dist`.
+  [`PbesExprKind::Quantifier`](https://mercorg.github.io/merc/merc_syntax/enum.PbesExprKind.html#variant.Quantifier)'s counterpart: the PRES check resolves
+  `variables`' declared sorts into the same flat, span-keyed [`Scope`](https://mercorg.github.io/merc/merc_typecheck/checking/type.Scope.html) a PBES's
+  [`Quantifier`](https://mercorg.github.io/merc/merc_syntax/enum.PbesExprKind.html#variant.Quantifier) or a process's [`Sum`](https://mercorg.github.io/merc/merc_syntax/enum.ProcessExprKind.html#variant.Sum)/[`Dist`](https://mercorg.github.io/merc/merc_syntax/enum.ProcessExprKind.html#variant.Dist) binders produce.
 
 ## Span-keyed typing info (LSP support)
 
-`ProcessSpecification::typing_info`, `PbesSpecification::typing_info`, and
-`PresSpecification::typing_info` each expose the same span-keyed
-[`TypingInfo`](../typechecking/typing-info.md) `DataSpecification` does, merged over
-every expression the walk above checks:
+[`ProcessSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.ProcessSpecification.html), [`PbesSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.PbesSpecification.html) and [`PresSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.PresSpecification.html) each expose
+the same span-keyed [`TypingInfo`](../typechecking/typing-info.md) a
+[`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.DataSpecification.html) does, merged over every expression the walk above checks:
 
 - **Process** — action arguments, process-instantiation arguments,
   conditions, time bounds, `dist` weights.
@@ -160,7 +157,7 @@ every expression the walk above checks:
 - **PRES** — the same as PBES, plus constant multipliers and
   `inf`/`sup`/`sum` binders.
 
-All three are computed once during their respective `from_untyped_with`
-construction walk — the walk that resolves names and sorts already visits
-every node, so exposing the accumulated `TypingInfo` needs no extra pass —
-so reading it back afterwards is a cheap clone rather than a second pass.
+All three are computed once during construction — the walk that resolves names
+and sorts already visits every node, so exposing the accumulated `TypingInfo`
+needs no extra pass — so reading it back afterwards is a cheap clone rather
+than a second pass.

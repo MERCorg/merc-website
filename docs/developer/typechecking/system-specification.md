@@ -3,348 +3,312 @@
 The standard data types of Appendix B — `Bool`, `Pos`, `Nat`, `Int`, `Real`,
 the `List`, `Set`, `Bag`, `FSet`, `FBag` containers, and function updates — are
 not written by the user but are needed by almost every specification. merc
-keeps them in a separate **system-defined specification**, assembled in
-[Phase 2](signature.md) for exactly the sorts that occur (as a transitive
-fixed point — `Set(S)` pulls in `FSet(S)`, and so on), alongside the defining
-equations of the [desugared structured sorts](desugaring.md). It is *trusted,
-generated content*: instantiated Appendix-B templates and generated struct
-equations, not something a user typed.
+keeps them apart from the user's own declarations in two ways, at two
+different times:
+
+- **[`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html)'s own `system` field**, assembled once in
+  [Phase 2](signature.md) and checked eagerly, holds only the five basic
+  sorts' own constructors/mappings/equations (`basics`) plus the defining
+  equations of the [desugared structured sorts](desugaring.md) — never a
+  container or function-update instantiation.
+- **The container, function-update and comparison operations** (`in`, `#`,
+  `|>`, `head`, the function-update operators, `==`, `<`, `if`, …) are
+  declared exactly once, polymorphically, as
+  [schemes](#the-polymorphic-signature) in the one pooled signature every
+  declaration lives in. Their *ground* instantiations — `in: Nat # List(Nat)
+  -> Bool` and the equations that define it — are never part of `system` at
+  all; they are generated on demand, only for the sorts that actually occur,
+  at [Phase 4 lowering](lowering.md), the one point where the checker has to
+  hand a rewriter concrete symbols instead of a scheme.
+
+That split is why `system` is small: what used to be "every Appendix-B
+declaration for every sort in the fixed point" is now "the handful of things
+that are checked once, eagerly, because a rewriter needs concrete content
+built from them later." [Type Variables & Polymorphic Schemes](polymorphism.md)
+covers how a scheme is declared, resolved and instantiated; this page covers
+why the split exists at all, and how each side of it is checked.
 
 ## Why it is not type-checked as a user specification
 
-It might seem natural to instantiate this specification for every sort that
-occurs and then run the ordinary well-typedness checks and sort resolution
-over it, exactly as for the user's declarations. merc deliberately does *not*,
-for two reasons.
+It might seem natural to resolve `basics` and the desugared structs' own
+equations as ordinary user content and be done with it. merc almost does —
+see [below](#checking-system-basics-and-desugared-structs) — but two things
+keep even this smaller `system` from being *identical* to a user
+specification.
 
-- **It legitimately declares things a user may not.** The Appendix-B templates
-  give the basic sorts their constructors (`@c0: Nat`, the `Pos`/`Int`/`Real`
-  constructor chains) and use reserved `@`-prefixed names throughout. The
+- **It legitimately declares things a user may not.** The basic-sort
+  templates give `Nat`/`Pos`/`Int`/`Real` their constructor chains
+  (`@c0: Nat`, …) and use reserved `@`-prefixed names throughout. The
   well-typedness conditions of [Definition 15.1.7](signature.md#well-typedness)
-  — no constructors on basic or function sorts, constructor/mapping
-  disjointness — are *user*-facing rules that this generated content is meant
-  to violate. Running them over the system specification would reject it out
-  of hand.
-- **Instantiating it per sort *into the searchable signature* would create
-  ambiguity.** The container and function-update operations (`in`, `#`, `|>`,
-  `head`, the function-update operators, …) exist for *every* element sort.
-  Resolving their per-sort instantiations into the signature — so
-  `in: S # List(S) -> Bool` becomes one concrete overload for each `S` that
-  occurs — while *also* keeping the polymorphic lookup described
-  [below](#the-polymorphic-signature) would list every such operation twice:
-  once as the concrete overload and once polymorphically. A name with both a
-  concrete and a polymorphic candidate for the same sort produces two tied
-  disjuncts, which the solver reports as a spurious ambiguity. (Full
-  instantiation on its own, without the polymorphic lookup, would be fine —
-  see [below](#why-polymorphism-at-all).)
+  that forbid a constructor on a basic sort are *user*-facing rules this
+  generated content is meant to violate on purpose.
+- **A user declaration may not shadow it.** A reserved-name check runs before
+  `basics` is even merged in, and rejects any user `cons`/`map`
+  declaration that reuses a basic-sort symbol's name, any of the polymorphic
+  operator names (container, function-update or comparison), or the reserved
+  `@` prefix — unconditionally, not just when the sorts happen to collide.
+  This is what keeps the one pooled signature from ever having to decide
+  whether a user's own `map in: ...` is a second overload of the built-in
+  scheme `in` or a hard conflict with it: the question never comes up,
+  because the declaration that would raise it is rejected first.
 
-Instead, the system specification is trusted and checked separately, on its
-own terms, in **two passes with two different jobs**: a cheap syntactic pass
-that always runs, and a full inference pass, scoped per instantiation group.
+Both are handled the same way for the container/function-update/comparison
+operations too, just earlier: the names Appendix-B's own templates declare
+feed that same reserved-name check, and those operations are never resolved
+into the signature as *concrete* overloads at all (only as schemes, see
+[below](#the-polymorphic-signature)), so there is no per-sort
+concrete/polymorphic pair for the same name to tie against each other the way
+an earlier design risked.
 
-## Two-stage checking
+## Checking `system`: basics and desugared structs { #checking-system-basics-and-desugared-structs }
 
-### Stage 1 — `check_system_specification` (cheap, unconditional, no inference)
+Once `basics` and the desugared structs' own equations are assembled, `system`
+is checked through almost the same pipeline a user's own declarations are,
+not a bespoke one:
 
-This runs first, unconditionally, in every build — not gated behind a
-`debug_assert!`, since silently trusting a malformed generated spec in a
-release build would leave a rewrite specification quietly missing rules. It is
-a purely structural pass over the generated content exactly as written,
-independent of any sort it happens to be instantiated for:
+- **Sort references resolve through the one shared resolver.** `basics`'s and
+  the re-parsed struct equations' own bare sort names (`@NatPair`, a struct's
+  own field sorts, …) are resolved by the same pass that resolves the user's
+  own sort names, against the one shared
+  `sorts` table — see [System-internal sorts](#system-internal-sorts) below
+  for why there is no second table or offset convention to reason about here.
+- **Equation well-formedness is checked again, directly, over `system`'s own
+  equations** — the same duplicate-`var`-block-variable, bare-product-sort-on-a-variable
+  and free-variable-occurs-on-lhs rules
+  [well-typedness](signature.md#well-typedness) already applied to the user's
+  own equations. Neither rule has a trusted-content
+  exemption — a generated equation with an unbound right-hand-side variable is
+  just as unexecutable by rewriting as a user one — so there is nothing for a
+  `trusted` flag to gate here, unlike the next bullet.
+- **`basics`'s constructor/mapping declarations go through the same
+  signature-layer checks the user's own declarations do, as `trusted`
+  content.**
+  `trusted` skips exactly one rule, [`ConstructorForBasicSort`](https://mercorg.github.io/merc/merc_typecheck/signature/is_well_typed/enum.WellTypedError.html#variant.ConstructorForBasicSort) (`@c0: Nat` and
+  friends); every other 15.1.7 signature check (no constructor for a function
+  sort, constructor/mapping disjointness, no zero-arity symbol under two
+  different sorts) runs unconditionally, catching a real bug in a bundled
+  `.mcrl2` template rather than letting it through as "generated, so
+  presumably fine."
+- **Full Phase-3 inference runs over every `system` equation**, the same
+  constraint generation, unification and ranked search that drives user
+  equations — see
+  [Name resolution inside a system equation](#name-resolution-inside-a-system-equation)
+  for the one thing that differs, which signature and builtin-scheme table a
+  name resolves against.
 
-- every sort reference is declared (catching an uninstantiated template
-  variable like `S`), and every `Resolved` sort indexes a real user sort
-  declaration;
-- product sorts occur only as function domains, and no structured sort
-  survives desugaring;
-- no `var` block declares a variable twice;
-- every name in an equation resolves — to a binder, an equation variable, a
-  constructor or mapping of the system or user specification, or a builtin
-  scheme (see [below](#the-polymorphic-signature));
-- the free variables of a condition and right-hand side occur in the
-  left-hand side, so every rule is executable by rewriting.
+Nothing here needs an unconditional, inference-free structural safety net the
+way the generated container content described next does: `system` is a fixed,
+finite AST assembled once, and every rule above either runs the exact code a
+user declaration's own well-typedness already trusts, or is a real check
+against generated content that would otherwise sail through unnoticed
+(the signature-layer checks over `basics`).
 
-One signature-level rule from Phase 2's well-typedness check is re-checked
-here too: no constructor may target a function sort
-(`ConstructorForFunctionSort`). Of Definition 15.1.7's constructor-related
-checks, this is the *only* one the system specification does not legitimately
-break — no template declares a function-sort constructor, so a hit here always
-catches a genuine editing mistake in a `spec/*.mcrl2` template. The other
-checks are deliberately *not* shared, because the system specification is
-designed to break them: `ConstructorForBasicSort` (`@c0: Nat`),
-`DuplicateConstantDifferentSort` (`[]: List(S)` is nullary and polymorphic, so
-using both `List(D)` and `List(E)` legitimately declares `[]` at two sorts once
-instantiated), and `ConstructorAndMappingConflict` (the same risk recurs across
-container instantiations).
+## Checking the container templates: once, rigidly
 
-`ConstructorForFunctionSort` is checked *syntactically* here — a raw walk over
-the generated `SortExpression`s — rather than shared with `build_signature`'s
-version of the same rule: the system specification is nominal and alias-free,
-so no interned sort lattice is needed for it, and merging the two code paths
-behind an `is_system` flag would be the flag-argument anti-pattern, since the
-resolution mechanisms differ entirely (memoized user queries versus a raw
-`resolve_system_sort` walk).
+A container/function-update template (`list.mcrl2`, `set.mcrl2`, …) is parsed
+once, with its own `type_var S;` block, and never re-parsed per instantiation.
+Its constructor/mapping declarations become [`PolySortScheme`](#the-polymorphic-signature)
+entries in the one pooled signature; its own defining equations —
+`bag.mcrl2`'s `@zero_ == @one_`, and the rest — are checked exactly **once**,
+with the template's type variable(s) held **rigid**: a skolem constant, not a
+unification variable, for the duration of that one check. This happens
+unconditionally while a [`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html) is built, regardless of whether the
+specification being checked ever uses a container at all, and the result — a
+[`TemplateCheck`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html) per template, `{ type_vars, typings }` — is memoized on the
+checking context.
 
-This stage exists to catch an editing mistake in a `spec/*.mcrl2` template
-cheaply, before spending a full inference pass on it. It never runs Phase-3
-sort inference.
+Rigidity is what makes checking once sound, the same "generalize, then
+instantiate fresh at each use" discipline let-polymorphism relies on: proving
+an equation holds for an arbitrary, unconstrained `S` entails it holds for
+every particular `S` a caller later substitutes, so `@zero_ == @one_` need
+never be checked again for `Bag(Nat)`, `Bag(D)`, or any other concrete
+instantiation. A user specification using several different container
+element sorts pays this cost exactly once per template, not once per element
+sort — see [Why polymorphism at all](#why-polymorphism-at-all) for the
+tradeoff this embodies more broadly.
 
-### Stage 2 — `check_system_equations` (full inference, per instantiation group)
+A multi-argument function update (arity > 1) has no single bundled template —
+the checker builds and checks a generic one for whichever arities actually
+occur, the first time each is seen, temporarily merging its own scheme into the
+pooled signature for the duration of that one check (its
+`@func_update`/`@is_not_an_update`/… names would otherwise fail to unify
+against an arity it wasn't declared for) and caching the result under
+`"function_update_{arity}"`, the same table the bundled templates use.
 
-Once Stage 1 has confirmed the generated content is structurally sane,
-`check_system_equations` runs the *same* Phase-3 constraint-based inference
-over every system equation that `check_equations` runs for user equations —
-both share the same `ConstraintGenerator`/`Solver` (`EquationRole` in
-`inference.rs`). This is the stage most directly relevant to the question of
-*how* system equations get their sorts, and it differs from user-equation
-checking in two ways: **where names resolve from**, and **where sorts resolve
-from**. This is the part covered in detail below.
+## Materializing ground content at lowering time
 
-## Why system equations can't share one pooled signature
+Container/function-update/comparison operations stay schemes for as long as
+type checking runs — see [Why it is not type-checked as a user
+specification](#why-it-is-not-type-checked-as-a-user-specification) for why
+concrete overloads are never resolved into the signature alongside them. A
+rewriter has no representation for a scheme, though: [lowering](lowering.md)
+needs concrete constructors, mappings and equations for exactly the container,
+function-update and comparison instantiations the specification actually
+uses. It builds them fresh, once, for that call:
 
-Two instantiations of the same container template — say `Bag(Nat)` and
-`Bag(D)` for some user sort `D` — each carry their **own copy** of the
-template's defining equations. Some of those equations, like `bag.mcrl2`'s own
-`@zero_ == @one_`, mention no argument at all: nothing about the equation's own
-shape says whether it belongs to the `Nat` instantiation or the `D`
-instantiation.
-
-If both instantiations' declarations were resolved into one pooled signature,
-type-checking that equation would find `@zero_`/`@one_` overloaded between the
-`Bag(Nat)` and `Bag(D)` versions with no way to prefer one — a spurious
-ambiguity in *generated* content, not a real ambiguity in anything the user
-wrote. `SystemEquationGroup` exists to prevent exactly this:
-
-- `build_system_defined_specification` generates the Appendix-B content as a
-  worklist fixpoint (a container pulls in the containers it depends on: `Set(S)`
-  needs `FSet(S)`, and so on), but keeps each *batch* of content generated for
-  one concrete sort separate rather than merging it in immediately.
-- Each batch is then partitioned by `container_group_key` — the sort **one
-  level down** from the container (`Bag(Nat)`'s key is `Nat`; `FSet(Nat)`'s and
-  `Set(Nat)`'s key is also `Nat`, so a container and its transitive
-  dependencies share one group). This key is deliberately *not* recursive: a
-  recursive key would collapse `FSet(Set(Nat))` onto the same key as an
-  unrelated `Set(Nat)`, reintroducing exactly the ambiguity this grouping
-  exists to prevent.
-- Each partition becomes one `SystemEquationGroup`, recording its own
-  `UntypedDataSpecification` slice and the `Range<usize>` of
-  `equation_declarations` indices it occupies.
-- `resolve_system_signature_full` then resolves each group's own constructor
-  and mapping declarations into its **own** `Arc<Signature>`, stored at
-  `ctx.system_equation_signature_by_group[eqn_spec_id]` — indexed by the
-  equation-block id, so every equation in a given group's range shares the
-  same signature.
-
-So the `Bag(D)` group's `@zero_ == @one_` type-checks against a signature that
-only contains `Bag(D)`'s own `@zero_`/`@one_`, and the `Bag(Nat)` group's copy
-of the same equation sees only `Bag(Nat)`'s — the two never collide, because
-they're never checked against the same signature at all.
-
-Struct-desugaring equations follow the same rule for the same reason: `c1`
-and `is_c1`, generated for `sort D = struct c1(pr1: Nat)?is_c1;`, are declared
-on the *user* specification rather than the system one, but they still resolve
-correctly because they land in their own group's own signature, not because
-they're special-cased.
+- **A syntactic pass** walks a worklist fixpoint over
+  `spec`'s own textual sort occurrences (a `Set(S)` pulls in `FSet(S)`; a
+  function sort pulls in the function-update operators for its arity), and
+  independently, uniformly, over *every* sort for the comparison operators.
+  For each sort it discovers, it clones the matching template's declarations
+  and equations and **substitutes** the concrete sort for the template's bound
+  type variable — a syntactic substitution walk over the template's own AST,
+  not a fresh parse and not a fresh resolution pass: the substituted sort node
+  is already a resolved `Resolved(name, DefId)` node, copied in from the user's
+  own already-resolved sort tree.
+- **A second, inference-driven pass** catches what that syntactic scan cannot
+  see: the element sort of a `List`/`Set`/`Bag` enumeration literal
+  (`[1, 2, 3]`, `{1, 2}`) or a bare numeral is never written down anywhere in
+  the source — it is purely a product of Phase-3 inference — so this replays
+  the same worklist against every sort that shows up in an already-typed
+  equation's own inferred sorts, diffed against what the syntactic pass
+  already covered.
+- **Each generated equation is then specialized from its template's
+  already-proven, rigid typing by substitution — one [`TemplateInstantiation`](https://mercorg.github.io/merc/merc_typecheck/lowering/instantiate/struct.TemplateInstantiation.html)
+  per generated block — instead of re-running inference.** This is the same
+  "prove once, specialize by substitution" step described
+  [above](#checking-the-container-templates-once-rigidly), applied at the point
+  the specialization is actually needed. Two
+  instantiations of the same template (`Bag(Nat)`, `Bag(D)`) never collide the
+  way an earlier design's grouping machinery had to guard against, because
+  neither one is independently *inferred* at all — there is nothing left to
+  tie or disambiguate.
+- **One unconditional, inference-free structural safety net remains**, run
+  once over the generated content
+  merged with `system` (so a generated equation referencing a basic-sort
+  operator by name resolves correctly). Nothing else ever checks this
+  content's own names and sort references — substitution, not inference,
+  produced it — so this stays a raw, syntactic walk: every sort reference is
+  declared and every `Resolved` node indexes a real sort declaration; no `var`
+  block declares a variable twice; the free variables of a condition and
+  right-hand side occur in the left-hand side; and no constructor targets a
+  function sort (the one 15.1.7 signature rule this generated content does
+  *not* legitimately break — a hit here is always a bug in a `spec/*.mcrl2`
+  template, not a false positive). It deliberately does **not** re-check
+  constructor/mapping disjointness or duplicate-constant-different-sort: `[]:
+  List(D)` and `[]: List(E)` are meant to both exist once both sorts occur,
+  the same intentional exemption the pre-lowering signature never had to make
+  because these declarations were never resolved into it at all. Should never
+  fail for a well-formed template — a failure here is a bug in the generator,
+  not in anything the user wrote, so it panics rather than threading a
+  `Result` through lowering.
 
 ## Name resolution inside a system equation
 
-Within `infer` (the shared Phase-3 entry point), an `EquationRole` selects
-which signatures and polymorphic table a name resolves against. Both roles
-share identical constraint generation, unification, and ranked search — only
-the *lookup order* for a name, and *how* a declared sort resolves, differ:
+Within the shared Phase-3 entry point, an [`EquationRole`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html) selects
+which signature and builtin-scheme table a name resolves against, and where a
+binder/equation-variable's declared sort resolves from. All three roles share
+identical constraint generation, unification and ranked search:
 
-| | User equation (`EquationRole::User`) | System equation (`EquationRole::System`) |
-|---|---|---|
-| Name resolution order | `ctx.signature` (the full user overload set, its `schemes` field already carrying the container/function-update templates **and** the comparison/`if` schemes) → `ctx.system_signature` (concretely-resolved basic-sort operators) | `ctx.system_equation_signature_by_group[eqn_spec_id]` (**this equation's own group**, concretely resolved) → `ctx.system_signature` → `build_builtin_scheme_signature`'s table (comparison/`if` schemes **only** — no container templates) |
-| Declared-sort resolution | `resolve_sort` — through name resolution and the alias table | `resolve_system_sort` — via the pre-built `system_sort_ids` table, since the system spec's sort references never go through ordinary name resolution |
-| Driven by | `check_equations` / `query_equation_typing` | `check_system_equations` / `query_system_equation_typing` |
-| Memoized in | `ctx.equation_typing` | `ctx.system_equation_typing` |
-| Contributes to `TypingInfo` | yes | no — a system equation has no source span in the user's document to attribute a typed node to |
+| | User ([`EquationRole::User`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.User)) | `system` equation ([`EquationRole::System`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.System)) | Container template's own equations ([`EquationRole::Template`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.Template)) |
+|---|---|---|---|
+| Name resolution order | `ctx.signature` (the full pooled signature — every user declaration, `basics`'s own operators, and every container/function-update/comparison scheme) | This equation's own `ctx.struct_signature_overrides` entry if it belongs to a struct, else `ctx.basics_signature` (basic-sort operators only) → the narrow builtin-scheme table (comparison/`if` schemes **only**, never the container templates) | `ctx.signature`, exactly as `User` — checked with the template's own scheme already present in it, since signature construction merges every template's scheme in unconditionally |
+| Declared-sort resolution | memoized per [`VarId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.VarId.html) | unmemoized | unmemoized |
+| Equation typing | inferred per equation | inferred per equation, or specialized by substitution when a [`TemplateInstantiation`](https://mercorg.github.io/merc/merc_typecheck/lowering/instantiate/struct.TemplateInstantiation.html) covers the block | inferred once, rigidly, per template |
+| Memoized in | `ctx.equation_typing` | `ctx.system_equation_typing` | `ctx.template_typings` |
+| Contributes to [`TypingInfo`](https://mercorg.github.io/merc/merc_typecheck/typing_info/struct.TypingInfo.html) | yes | no — a system equation has no source span in the user's document to attribute a typed node to | no |
 
-### Why not just reuse `resolve_sort`?
+The `System` row's struct-scoped override exists for the same reason it
+always has: a struct's own recogniser/projection/comparison equations must
+resolve `is_c1`/`pr1`/`==` against *that struct's own* constructors and
+projections, not the rest of the user's specification — an unrelated struct's
+same-named field would otherwise leak in as a spurious extra overload. It is
+built once per struct, while the [`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html) is constructed, by
+filtering the full signature down to that struct's own constructor/mapping
+names and merging in the basic-sort operators.
 
-The second row deserves its own justification: `resolve_sort` isn't merely
-unoptimized for the system spec, it is structurally the wrong function to
-call on it, for two independent reasons.
-
-- **A system-spec sort reference was never resolved in the first place.**
-  `resolve_sort`'s `Reference` arm is `unreachable!("Names must have been
-  resolved")` — a hard precondition, not an oversight — because ordinary name
-  resolution (`resolve_sort_ids`) runs exactly once, over the *user's* parsed
-  AST, at the very start of the pipeline. The container and basic-sort
-  templates (`list.mcrl2`, `bag.mcrl2`, …) are parsed *separately*, straight
-  from bundled `.mcrl2` files, and merged in only afterwards — well after that
-  one resolution pass has already run and moved on. Their `S`/`T` sort
-  variables are genuinely still bare `Reference` nodes at that point
-  (`replace_sort` later does a pure syntactic find-and-replace on them, not a
-  resolution), so handing one to `resolve_sort` would simply panic.
-- **Even a `Resolved` node in the system spec can point at the wrong
-  specification.** Instantiating a template for a user sort (substituting `D`
-  for `S` in the `List` template, say) splices in the user sort's own
-  already-`Resolved("D", id)` node, where `id` indexes
-  `user_spec.sort_declarations`. `query_sort_of_def` — which `resolve_sort`
-  delegates to — asserts that `id` indexes *the exact `spec` argument passed
-  to it*. Calling `resolve_sort(ctx, system, ...)` on that node would look up
-  `system.sort_declarations[id]`: a different, unrelated `Vec` that merely
-  *numbers* its own system-internal sorts (`@NatPair`, …) starting where the
-  user's leaves off (see [below](#system-internal-sorts-and-the-defid-offset))
-  — a convention for the `DefId` encoding, not a literal shared array, so
-  indexing into the wrong `Vec` with it is either out of bounds or silently
-  wrong.
-
-`resolve_system_sort` exists specifically to bridge both gaps: its
-`Reference` case checks the system-internal `system_sort_ids` table first,
-then falls back to a by-name search over `user_spec.sort_declarations` —
-needed because generated source such as `structured_sort_equations`'s struct
-equations is *re-parsed from scratch*, so a user sort it mentions by name is
-a fresh `Reference` too, never touched by the user's own resolution pass even
-though that same sort already has a `DefId` from when the user spec was
-resolved. Its `Resolved(_, id)` case always redirects to
-`query_sort_of_def(ctx, user_spec, id)` — the *user* spec, unconditionally,
-regardless of which spec the reference itself lives in.
-
-A more radical alternative — splice the system spec's declarations into the
-user's own `sort_declarations` and run `resolve_sort_ids` once over the
-combination, so one ordinary resolver would do — isn't available, because the
-system spec isn't a fixed, complete AST at the point resolution would need to
-happen: it's generated incrementally, as a worklist fixpoint discovering which
-containers are needed, and only *after* the user spec is already fully
-resolved (instantiation needs to know which concrete sorts occur to
-substitute). Splicing new declarations into the user's own `Vec` after the
-fact would invalidate anything already memoized against that `Vec`'s identity,
-and would blur the "trusted, generated, checked on its own terms" boundary the
-whole design leans on — the one that keeps `@c0: Nat`-style
-constructors-for-basic-sorts from tripping the user-facing well-typedness
-rules in the first place.
-
-The row that matters most for understanding the "special handling" is the
-first one: **why does a system equation get a *narrower* polymorphic table
-than a user equation does?**
-
-Within a group, a container/function-update operation like `in` or `|>` is
-already present as a **concrete, resolved overload** in that group's own
-signature — e.g. `in: Nat # List(Nat) -> Bool` when checking the `List(Nat)`
-group's equations, resolved by `resolve_system_signature_full` exactly the way
-a user's own declaration would be. If `EquationRole::System` also consulted
-the container templates' schemes, a call to `in`
-inside that equation would get **two** disjuncts for the same occurrence — the
-concrete group overload, and a freshly-instantiated polymorphic template
-instance — which unify to the same sort and so tie at the same minimum
-measure, reported as a spurious ambiguity. This is the *same* failure mode
-described [above](#why-it-is-not-type-checked-as-a-user-specification) for why
-the outer signature never resolves the polymorphic operations concretely
-either; it just resurfaces one level down, inside the group's own equations,
-if left unguarded.
-
-The comparison operators and `if` don't carry this risk, for either role: they
-are never declared concretely *anywhere* — no template ever writes `==: Nat #
-Nat -> Bool` as an ordinary mapping — so the *only* way to reach them, in a
-user equation or a system one, is through the scheme table. That's why
-`build_builtin_scheme_signature`'s table — the same schemes
-`ctx.signature.schemes` carries, minus the six container/function-update
-templates — is exactly what a system equation's `builtin_schemes` is given
-(see [Type Variables & Polymorphic Schemes](polymorphism.md)): everything
-that has no concrete counterpart anywhere stays reachable, and everything that
-does (the container/function-update operations) is reached through the
-concrete group signature instead, never both ways at once.
+The `System` role deliberately never falls back to the full `ctx.signature`
+the way `User`/`Template` do — doing so would let a struct's own equations (or
+`basics`'s own) see every user declaration, not just the handful of names
+they actually need. `builtin_schemes` is correspondingly narrow for the same
+reason: only the comparison/`if` schemes, never the six container templates,
+because `system` never itself calls a container operation.
 
 ## The polymorphic signature { #the-polymorphic-signature }
 
-Because of the above, the built-in operators are made available to Phase-3
-inference in two different ways, according to how many sorts they range over:
+The built-in operators reach Phase-3 inference in two different ways,
+according to how many sorts they range over:
 
 - **Basic-sort operators** (`&&`, `+`, `-`, `*`, the ordering comparisons on
   numbers, …) range over the five basic sorts only. Their declarations *are*
-  resolved per-sort onto the lattice, giving inference an ordinary finite
-  overload set — the *system signature* (`ctx.system_signature`).
-- **Comparison operators and `if`** (`==`, `!=`, `<`, `<=`, `>`, `>=`, `if`)
-  exist for *every* sort and are never declared anywhere. They are typed as
-  **schemes** — `==` as $?a \# ?a \to Bool$, `if` as $Bool \# ?a \# ?a \to ?a$
-  — instantiated with a fresh unification variable per occurrence.
+  resolved concretely, giving inference an ordinary finite overload set —
+  `ctx.basics_signature`, merged into the one pooled `ctx.signature` too.
+- **Comparison operators and `if`** (`==`, `!=`, `<`, `<=`, `>`, `>=`,
+  `less_total`, `if`) exist for *every* sort and are never declared concretely
+  anywhere. They are typed as schemes — `==` as $\forall S.\ S \# S \to Bool$,
+  `if` as $\forall S.\ Bool \# S \# S \to S$ — built once from
+  [`BUILTIN_SCHEME_TEMPLATE`](https://mercorg.github.io/merc/merc_typecheck/signature/standard_sorts/static.BUILTIN_SCHEME_TEMPLATE.html). `less_total` is not user-facing: it is a total
+  order on `S` that `Set`/`Bag`/`FSet`/`FBag` use internally to keep their
+  element lists canonically sorted even for a sort whose `<` is not itself
+  total (e.g. a `Set` ordered by subset).
 - **Container and function-update operations** exist for every *element*
   sort. Their template declarations, each with its own explicit `type_var`
-  block, are collected once into `Signature::schemes`, keyed by name, with
-  the template's sort variables resolved onto the lattice as
-  `ResolvedSort::Var` rather than left as bare names. Inference looks them up
-  there and instantiates each overload with fresh unification variables per
-  occurrence, exactly like the comparison schemes. See [Type Variables &
-  Polymorphic Schemes](polymorphism.md) for the mechanics.
+  block, are collected once into [`Signature::schemes`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html#structfield.schemes), keyed by name — see
+  [Type Variables & Polymorphic Schemes](polymorphism.md) for exactly how a
+  `type_var S;` block resolves and
+  how a scheme is instantiated fresh, with a new unification variable, at
+  each occurrence.
 
-This mirrors mCRL2's built-in polymorphic symbol table. The per-sort
-instantiations of the polymorphic operations still exist in the system
-specification — they are needed for the defining equations (via the group
-signatures above) and for Phase-4 lowering — but, as explained above, they are
-deliberately *not* resolved into the *outer* signature that a user equation's
-inference searches. Phase-4 lowering recovers the concrete operation from the
-operator name together with the sort that inference assigned the occurrence.
+This mirrors mCRL2's own polymorphic built-in symbol table. Concrete,
+per-sort instantiations of these operations are never resolved into
+`ctx.signature` at all — only into the generated content
+[lowering builds](#materializing-ground-content-at-lowering-time) on demand,
+which is never itself re-resolved into a signature, only lowered directly.
 
 ### Why polymorphism at all
 
 Treating these operations polymorphically is ultimately an **optimization,
-not a necessity**. merc could instead instantiate every polymorphic operation
-for every element sort in the transitive fixed point — turning `in: S #
-List(S) -> Bool` into concrete overloads `in: Nat # List(Nat) -> Bool`, `in:
-Pos # List(Pos) -> Bool`, … — drop the polymorphic lookup, and resolve the
-results into the ordinary signature like any user overload. That
+not a necessity**. merc could instead fully instantiate every polymorphic
+operation for every element sort that occurs — turning `in: S # List(S) ->
+Bool` into concrete overloads `in: Nat # List(Nat) -> Bool`, `in: Pos #
+List(Pos) -> Bool`, … — and resolve the results into the ordinary signature
+like any user overload, dropping the scheme lookup entirely. That
 instantiation is entirely possible and would accept exactly the same
-specifications. It is avoided because it scales poorly: the set of element
-sorts grows with every nested container, so each operation contributes one
-concrete overload per sort, enlarging the disjunctions the solver must search
-at every use site. A single template instantiated on demand with a fresh
-unification variable gives inference one candidate — its element sort filled
-in from the arguments — where full instantiation would give it many. The
-scheme also avoids pre-instantiating an operation for an element sort that
-inference pins down only late (the element of an empty `[]`, or one supplied
-by a default), and it keeps merc aligned with mCRL2's own polymorphic built-in
-table. The ambiguity noted above is what forbids doing *both* —
-instantiating *and* keeping the polymorphic lookup — not what forces the
-polymorphic route on its own.
+specifications; it just used to be how merc worked, before this scheme-based
+representation replaced it. It remains the wrong default because it scales
+poorly: the set of element sorts grows with every nested container, so each
+operation would contribute one concrete overload per sort, enlarging the
+disjunctions the solver must search at every use site. A single template
+instantiated on demand with a fresh unification variable gives inference one
+candidate — its element sort filled in from the arguments — where full
+instantiation would give it many. The scheme also avoids pre-instantiating an
+operation for an element sort that inference pins down only late (the element
+of an empty `[]`, or one supplied by a default), and it keeps merc aligned
+with mCRL2's own polymorphic built-in table.
 
 !!! note "One subtlety: arithmetic that is also a container operation"
     `+`, `-` and `*` are both number operators and the `Set`/`Bag` union,
-    difference and intersection operators, so their `Disjunction` includes
+    difference and intersection operators, so their [`Disjunction`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.Disjunction.html) includes
     the basic-sort overloads *and* the polymorphic container templates
     together — the container reading is simply one more disjunct, ruled out
     like any other by the argument sorts.
 
     `merc_typecheck` used to special-case the arithmetic-family names (`+`,
     `-`, `*`, `/`, `div`, `mod`, `exp`, `max`, `min`) with a direct-lookup
-    fast path that skipped building a `Disjunction` for them entirely, to
+    fast path that skipped building a [`Disjunction`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.Disjunction.html) for them entirely, to
     keep equations with many repeated arithmetic sub-expressions from
-    branching combinatorially — see
-    `test_repeated_arithmetic_stays_tractable`
-    (`crates/typecheck/tests/inference_test.rs`) for the regression shape
-    that motivated it. It was removed: `+`/`-`/`*` could never actually take
-    it (they always have the container reading above, so the fast path was
+    branching combinatorially — see the repeated-arithmetic regression test
+    in the typecheck crate's inference tests for the shape that motivated it.
+    It was removed: `+`/`-`/`*` could never actually take it (they always have
+    the container reading above, so the fast path was
     permanently unavailable for exactly the three names most likely to
     repeat in an equation), and measuring the other six names directly
-    against the plain `Disjunction` path showed the
+    against the plain [`Disjunction`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.Disjunction.html) path showed the
     [branch-and-bound pruning](sort-inference.md#ranked-backtracking-search)
     already keeps repeated arithmetic tractable on its own — a nine-level
     nested equation with eighteen `+`/`*` occurrences type checks in a
     couple of milliseconds either way. The fast path's own bookkeeping cost
     more than the modest constant factor it saved.
 
-## System-internal sorts and the `DefId` offset
+## System-internal sorts { #system-internal-sorts }
 
-Desugaring and instantiation introduce a few nominal sorts that the user never
-declared — for example `@NatPair`, used by the number templates. These
-*system-internal* sorts need identifiers on the same footing as the user's
-sorts, whose names are keyed by a `DefId` (an index into the user's sort
-declarations assigned during name resolution).
-
-Rather than a second namespace, merc simply **continues the numbering**: a
-system-internal sort declared at position $i$ in the system specification gets
-the `DefId` $\mathit{user\_len} + i$, where $\mathit{user\_len}$ is the number
-of user sort declarations. A `DefId` below `user_len` therefore indexes the
-user declarations; one at or above it indexes the system-internal sorts,
-offset by `user_len`. This keeps a resolved sort a single small index while
-letting a name lookup fall through from the user table to the system table.
-
-Because this offset is an *encoding* rather than a guaranteed contract, the
-two directions of it live in one place: the assignment when the system
-signature is resolved (`build_system_sort_ids`), and a single
-`TypeCheckContext::sort_name` accessor that performs the reverse lookup for
-both debug rendering and Phase-4 lowering. No other pass open-codes the
-`DefId − user_len` arithmetic, so a change to the scheme touches exactly those
-two spots.
+Desugaring and instantiation introduce a few nominal sorts the user never
+declared — `@NatPair`, used by the number templates, is the main example.
+These are folded directly into `spec.sort_declarations`, the same table the
+user's own sort declarations live in, before the one-time sort-resolution pass
+ever runs — so `@NatPair` gets an
+ordinary `DefId` from that same pass, findable by name exactly like a user
+sort, with no second namespace, no offset arithmetic, and no reverse lookup to
+keep in sync anywhere. A `DefId` means "index into the one table," everywhere,
+unconditionally, and a name lookup in `spec.sort_declarations` works the same
+way for a user sort and a system-internal one alike.
