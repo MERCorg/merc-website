@@ -54,11 +54,10 @@ opportunity that has just appeared mid-search, one work-item expansion after
 the goal was first split. Nothing revisits it: the search instead walks `m`
 up from `0` one successor at a time until it happens to hit `50`.
 
-Measured directly (`merc_enumerate::Enumerator::find_witness`, `InnermostRewriter`,
-counting calls to `rewrite_with` — one per branch the search actually
-expands):
+Measured directly with the [`InnermostRewriter`](https://mercorg.github.io/merc/merc_sabre/struct.InnermostRewriter.html), counting rewrite calls — one
+per branch the search actually expands:
 
-| Goal | `rewrite_with` calls to find the witness |
+| Goal | Rewrite calls to find the witness |
 |---|---|
 | the guard above, searched as written | **58** |
 | the same guard with `n` already fixed to `0` (`if(0 == 0, m == 50, m == 60)`), so the exposed `m == 50` conjunct is one-point *from the start* | **1** |
@@ -80,13 +79,13 @@ instead of once per goal, is real per-step overhead that has to be paid on
 *every* search, including the overwhelming majority that never hit this
 pattern.
 
-Tracked as deferred work in `docs/enumeration-crate-plan.md` (§6.3/§8.4,
-Phase 5) in the `merc` repository: worth implementing once a real
+Tracked as deferred work in the enumeration crate's own plan in the `merc`
+repository: worth implementing once a real
 specification's guards are shown to hit this pattern often enough for the
 57-call gap above to matter in aggregate — not before.
 
 The same static split has a second blind spot. Both the one-point rule and
-the variable ordering below work from `split_conjuncts`, which only flattens
+the variable ordering below work from one conjunct split, which only flattens
 top-level `&&`. A goal whose body is a top-level `||` — say
 `∃x,y . (x == 1 && P(y)) || (x == 2 && Q(y))` — hides its per-disjunct
 one-point conjuncts behind that `||`, and the search falls back to blind
@@ -108,9 +107,9 @@ The sole-survivor rule is the useful half: binding a variable that is the
 only unbound one left in a conjunct makes that conjunct ground immediately,
 so the search's reject test can decide it and prune the branch one step
 earlier than it otherwise would. Measured on a goal with one vacuous variable
-and one directly-constrained variable, declared in the "wrong" order,
-`find_witness` needs `max_items >= 18` with the ordering applied against
-`>= 22` without it. Real, but modest — the ranking runs once per goal and
+and one directly-constrained variable, declared in the "wrong" order, the
+search needs `max_items >= 18` with the ordering applied against `>= 22`
+without it. Real, but modest — the ranking runs once per goal and
 never re-ranks the fresh variables that a constructor expansion introduces
 at each level, which are appended behind whatever was already queued.
 
@@ -143,13 +142,13 @@ Substituting already-normal arguments into a constructor can still leave the
 composite reducible — under the machine-word `Nat` encoding, `@succ_nat`
 applied to a normalised digit still needs its carry-propagating equation to
 fire — and the values handed back to a caller are spliced straight into
-further `rewrite_with` calls as substitution images, which requires them to
-be normal forms.
+further rewrite calls as substitution images, which requires them to be normal
+forms.
 
 ## Testing the enumerator against a second implementation
 
 `merc_enumerate` ships a `NaiveEnumerator` alongside the real one, in the
-same role `merc_sabre::NaiveRewriter` plays for the rewrite engines:
+same role [`merc_sabre::NaiveRewriter`](https://mercorg.github.io/merc/merc_sabre/struct.NaiveRewriter.html) plays for the rewrite engines:
 materialise every ground term of each variable's sort up to a size bound,
 substitute all variables at once, rewrite once per combination. No
 incremental normalisation, no pruning, no one-point rule, no fairness scheme
@@ -157,10 +156,10 @@ to get wrong. Random goals are then run through both and their solution
 *sets* compared.
 
 Two things make that suite cheap enough to run 200 goals per invocation.
-Goals are built through the `merc_data`/`merc_sabre` API rather than
+Goals are built through the [`merc_data`](https://mercorg.github.io/merc/merc_data/index.html)/[`merc_sabre`](https://mercorg.github.io/merc/merc_sabre/index.html) API rather than
 generated as source text, so neither the parser nor the typechecker runs per
 goal. And the rewriters are built once, outside the loop: constructing an
-`InnermostRewriter` compiles a `SetAutomaton` over every equation the
+[`InnermostRewriter`](https://mercorg.github.io/merc/merc_sabre/struct.InnermostRewriter.html) compiles a [`SetAutomaton`](https://mercorg.github.io/merc/merc_sabre/struct.SetAutomaton.html) over every equation the
 specification carries, which includes the whole lowered built-in library
 (331 equations even for a specification declaring one small custom sort), so
 rebuilding one per goal dominated the runtime of an earlier version of the
