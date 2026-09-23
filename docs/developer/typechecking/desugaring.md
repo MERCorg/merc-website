@@ -1,8 +1,14 @@
 # Desugaring
 
-Phase 1 of the pipeline turns surface syntax with special-cased structure into
-plain applications and declarations, so every later phase has a single uniform
-code path to walk instead of one special case per surface construct.
+This page covers three transforms that turn surface syntax with special-cased
+structure into plain applications and declarations, so later phases have a
+single uniform code path to walk instead of one special case per surface
+construct. They are not one contiguous early phase, but run at three different
+points spread across the pipeline: anonymous-struct hoisting runs first, before
+[sort-name resolution](name-resolution.md) does any of its work; struct
+desugaring runs later, inside that same sort layer, after alias checks; and
+operator lowering runs well after the sort layer is entirely done, once sort
+inference itself has finished.
 
 ## Structured sorts
 
@@ -21,9 +27,7 @@ An anonymous `struct` can appear inside a map/constructor sort, an equation
 variable sort, or a binder annotation, without a top-level `sort X = struct
 ...;` declaring it. These are replaced by a reference to a named declaration
 before the desugaring above runs, so that struct desugaring only ever has to
-handle named structs. occurrence with a reference to a named declaration before
-the desugaring above runs, so that struct desugaring only ever has to handle
-named structs.
+handle named structs.
 
 Two hoisting rules are needed, not one, because an anonymous struct's *meaning*
 depends on whether it matches an already-declared struct:

@@ -5,7 +5,7 @@
 ```
 # Overview
 
-The `merc_typecheck` crate type checks mCRL2 data specifications, following the
+The [`merc_typecheck`](https://mercorg.github.io/merc/merc_typecheck/index.html) crate type checks mCRL2 data specifications, following the
 definitions in *Modeling and Analysis of Communicating Systems* (Groote &
 Mousavi, MIT Press 2014). A type checker turns the loosely-structured syntax
 tree produced by the parser into a fully typed specification: it resolves every
@@ -82,10 +82,10 @@ specification kind built on top of them:
    user's own declarations, and how a system equation is type checked
    against a deliberately narrower view of the polymorphic built-ins.
  - **[Source Maps, Imports & Virtual Templates](spec-includes.md)** — the
-   shared `SourceMap` byte-offset space, `%import` file composition, and how
+   shared [`SourceMap`](https://mercorg.github.io/merc/merc_utilities/source_map/struct.SourceMap.html) byte-offset space, `%import` file composition, and how
    generated system-defined content gets real, renderable declaration spans.
  - **[Type Variables & Polymorphic Schemes](polymorphism.md)** — the
-   `type_var` block, `ResolvedSort::Var`, and how a scheme like
+   `type_var` block, [`ResolvedSort::TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar), and how a scheme like
    `in: S # List(S) -> Bool` is resolved once and instantiated fresh at
    every use site.
  - **[Sort Inference](sort-inference.md)** — Phase 3: the sort lattice,
@@ -97,8 +97,8 @@ specification kind built on top of them:
 **Specification kinds built on the pipeline above:**
 
  - **[Specification Type Checking](../specification/index.md)** — how
-   `ProcessSpecification`, `PbesSpecification`, and `PresSpecification` each
+   [`ProcessSpecification`](https://mercorg.github.io/merc/merc_typecheck/process/process_specification/struct.ProcessSpecification.html), [`PbesSpecification`](https://mercorg.github.io/merc/merc_typecheck/pbes/pbes_specification/struct.PbesSpecification.html), and [`PresSpecification`](https://mercorg.github.io/merc/merc_typecheck/pres/pres_specification/struct.PresSpecification.html) each
    build on the data checker, collecting their own declarations and then
    type checking every expression.
- - **[Span-Keyed Typing Info (LSP Support)](typing-info.md)** — the `TypingInfo` API
-   that exposes typing facts by source `Span` for editor tooling.
+ - **[Span-Keyed Typing Info (LSP Support)](typing-info.md)** — the [`TypingInfo`](https://mercorg.github.io/merc/merc_typecheck/typing_info/struct.TypingInfo.html) API
+   that exposes typing facts by source [`Span`](https://mercorg.github.io/merc/merc_utilities/span/struct.Span.html) for editor tooling.

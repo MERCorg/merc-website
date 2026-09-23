@@ -20,8 +20,8 @@ like [`Id`](https://mercorg.github.io/merc/merc_syntax/enum.DataExprKind.html#va
 The declaration's *span*, unlike the id, is never moved off the tree — it
 stays on the declaration node itself (`variable.identifier.span`), so
 resolution has no span-side-table to maintain either. A [`VariableSpans`](https://mercorg.github.io/merc/merc_typecheck/typing_info/struct.VariableSpans.html)
-(`HashMap<VarId, Span>`) does get built, but only later and on demand: when
-[`TypingInfo` is built](typing-info.md#variable-go-to-definition-a-syntactic-pre-pass)
+(a [`HashMap`](https://doc.rust-lang.org/std/collections/struct.HashMap.html) from [`VarId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.VarId.html) to [`Span`](https://mercorg.github.io/merc/merc_utilities/span/struct.Span.html)) does get built, but only later and on demand: when
+[`TypingInfo`](https://mercorg.github.io/merc/merc_typecheck/typing_info/struct.TypingInfo.html) [is built](typing-info.md#variable-go-to-definition-a-syntactic-pre-pass)
 for one checked equation or expression, a separate walk over that
 *already-resolved* tree collects every binder it declares into a fresh
 [`VariableSpans`](https://mercorg.github.io/merc/merc_typecheck/typing_info/struct.VariableSpans.html) for that one build — not during resolution, and not during
@@ -64,13 +64,21 @@ each `type_var` declaration its own [`TypeVarId`](https://mercorg.github.io/merc
 This phase establishes what sorts exist and rejects malformed sort declarations,
 still operating directly on the AST rather than on any interned representation.
 
+### Function-sort domain flattening
+
+Before name resolution or any of the other sort-layer checks below run,
+function sorts with product domains such as `(A # B) -> C` are flattened into
+a single multi-argument form `A # B -> C`, so that every later phase sees one
+uniform representation of a function sort rather than having to special-case a
+[`Product`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Product) domain spine.
+
 ### Name resolution
 
-Sort-name resolution assigns a definition id (`DefId`) to every `sort`
+Sort-name resolution assigns a sort id ([`SortId`](https://mercorg.github.io/merc/merc_syntax/type.SortId.html)) to every `sort`
 declaration, and then every sort *reference* in the specification — including a
 binder sort buried inside an equation body, such as a quantifier variable, not
 just a declaration-level sort — is rewritten from [`Reference(name)`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Reference) to
-[`Resolved(name, DefId)`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Resolved). Duplicate and undefined sort names are rejected, while
+[`Resolved(name, SortId)`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Resolved). Duplicate and undefined sort names are rejected, while
 byte-identical duplicate declarations (`sort D; D;`) are silently accepted as
 one.
 
@@ -122,10 +130,3 @@ its own expansion is kept as a named representative instead of unfolded
 forever — this is what keeps normalization terminating on a cycle that closes
 through an inline `struct` (which the alias check permits, since recursion
 through a constructor is well-defined) rather than diverging on it.
-
-### Function-sort domain flattening
-
-Function sorts with product domains such as `(A # B) -> C` are also flattened
-here into a single multi-argument form `A # B -> C`, so that every later phase
-sees one uniform representation of a function sort rather than having to
-special-case a [`Product`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Product) domain spine.

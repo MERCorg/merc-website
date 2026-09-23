@@ -14,26 +14,26 @@ ranked backtracking search — both described in detail below.
 ## The sort lattice
 
 Sort inference works over an interned lattice of *resolved* sorts, which is
-the vocabulary shared by unification and the solver. A `ResolvedSort` is one
+the vocabulary shared by unification and the solver. A [`ResolvedSort`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html) is one
 of:
 
-- a primitive sort (`Bool`, `Pos`, `Nat`, `Int`, `Real`);
-- a container sort `op(S)` such as `List(S)`, `Set(S)` or `FBag(S)`;
-- a function sort $A_0 \# \dots \# A_n \to B$;
-- a nominal sort `Def(d)`, identified by the declaration `d` it resolves to;
-- a `Unit` sort, used internally for the result of an action;
-- a bound type variable `Var(v)`, identified by the `type_var` declaration
+- a [primitive](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.Primitive) sort (`Bool`, `Pos`, `Nat`, `Int`, `Real`);
+- a [container](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.Container) sort `op(S)` such as `List(S)`, `Set(S)` or `FBag(S)`;
+- a [function](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.Function) sort $A_0 \# \dots \# A_n \to B$;
+- a nominal sort [`Def(d)`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.Def), identified by the declaration `d` it resolves to;
+- a [`Unit`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.Unit) sort, used internally for the result of an action;
+- a bound type variable [`TypeVar(v)`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar), identified by the `type_var` declaration
   `v` it resolves to — see [Type Variables & Polymorphic
   Schemes](polymorphism.md). It only ever appears inside a *scheme*'s own
   interned sort (a container/function-update template, or the comparison/`if`
   schemes), never in an ordinary equation's inferred sort: instantiating a
-  scheme replaces every `Var` with a fresh unification variable before that
+  scheme replaces every [`TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar) with a fresh unification variable before that
   scheme reaches the constraint generator.
 
 Because sorts are **interned**, each distinct sort is stored once and two
 sorts are equal exactly when their indices are equal — a sort comparison is a
 single integer comparison. Sub-sorts are stored as indices too, so a
-`ResolvedSort` is small and structural equality never has to recurse.
+[`ResolvedSort`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html) is small and structural equality never has to recurse.
 
 Unlike the plain set of sorts in the book, these sorts form a **lattice**
 under the sub-sort ordering that the implicit coercions define:
@@ -57,7 +57,7 @@ than a collection of special cases.
 The generator walks the lowered condition, left-hand side and right-hand side
 of one equation and, for every sub-expression, allocates a *sort node* in the
 unifier (see below) and emits constraints relating those nodes. Nodes are
-numbered by an `ExprId` in a fixed order — parents before children, and within
+numbered by an [`ExprId`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/type.ExprId.html) in a fixed order — parents before children, and within
 an application the **arguments before the applied function**. This ordering
 matters: by the time the solver reaches a function's overload choice, the
 argument sorts are already known, so most overloads can be rejected
@@ -65,31 +65,33 @@ immediately.
 
 The constraint kinds are:
 
-- **Sub** — the sort of one node must be a sub-sort of another, modelling an
+- **[Sub](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Sub)** — the sort of one node must be a sub-sort of another, modelling an
   implicit up-cast (a `Nat` argument passed where `Int` is expected). Equality
   is the special case where no coercion is needed.
-- **Lit** — a number literal must take a number sort admitting its kind (`0`
+- **[Lit](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Lit)** — a number literal must take a number sort admitting its kind (`0`
   is a natural, every other literal is positive). Literals prefer the most
   specific sort, so `1` is a `Pos` before it is widened.
-- **Disjunction** — a name with several overloads must resolve to exactly one
+- **[Disjunction](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Disjunction)** — a name with several overloads must resolve to exactly one
   of them. The solver commits to one disjunct per solution.
-- **Comprehension** — a set/bag comprehension `{ x: S | e }` reads as a
+- **[Comprehension](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Comprehension)** — a set/bag comprehension `{ x: S | e }` reads as a
   `Set(S)` when its body is boolean and as a `Bag(S)` when its body is a
   number; the reading follows from the solved body sort.
-- **Numeric** — an application of an arithmetic operator (`+`, `-`, `*`, `/`,
-  `div`, `mod`, `exp`, `max`, `min`) with no user overload. Because the
-  built-in overloads of these operators never overlap on their argument
-  sorts, at most one can match a fully-known argument tuple, so this is
-  resolved by a direct lookup rather than by branching. Treating them this
-  way — instead of as a general disjunction — is what keeps equations with
-  many repeated arithmetic sub-expressions from blowing up combinatorially.
-- **Join** — a group of `Sub` constraints that all widen into the *same*
+- **[Join](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Join)** — a group of [`Sub`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Sub) constraints that all widen into the *same*
   shared sort variable (the operands of a comparison, the branches of an
   `if`, a set or bag element, the equation's two sides) is folded into one
   least-upper-bound over the lattice. Computing the common supersort in a
   single step avoids the order-sensitivity of solving the sub-constraints one
   at a time, where an early finite-container branch could otherwise fix the
   result prematurely and force the other branch to be re-explored.
+
+There is no dedicated constraint kind for arithmetic operators. `+`, `-`,
+`*`, `div`, `mod`, and the rest are ordinary overloaded `map` names —
+`pos.mcrl2`, `nat.mcrl2`, `int.mcrl2` and `real.mcrl2` each declare their own
+`+: Pos # Pos -> Pos;`/`+: Nat # Pos -> Pos;`/etc. as part of `system`'s own
+signature, the same way a user's own overloaded mapping would — so an
+application of one is typed through the ordinary **[Disjunction](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Disjunction)** constraint
+above, choosing between overloads exactly like the worked example below does
+for a user-defined `f`.
 
 Structural facts that must hold in *every* solution — that a callee has a
 function sort, that a condition is boolean — are unified eagerly at
@@ -105,7 +107,7 @@ the rest of the specification still type checks.
 Equality of sorts is decided by structural **unification** over a union-find
 table. merc uses [`ena`](https://crates.io/crates/ena) — the Rust compiler's
 extracted unification-table crate — for the union-find, wrapped in a
-`Unifier` that adds an arena of sort nodes and the sub-sort operations.
+[`Unifier`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/struct.Unifier.html) that adds an arena of sort nodes and the sub-sort operations.
 
 A sort node under inference is one of: a fully resolved (interned) sort, a
 container `op(subsort)` whose element may still contain variables, a function
@@ -130,7 +132,7 @@ sort a binding like `?t := List(?t)` would otherwise create.
 
 Crucially, unification itself decides only **equality**, not sub-typing. The
 sub-sort ordering is handled one level up, by the solver: unification never
-silently widens `Nat` into `Int`. Instead, the `Unifier` exposes the strict
+silently widens `Nat` into `Int`. Instead, the [`Unifier`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/struct.Unifier.html) exposes the strict
 super-sorts and sub-sorts of a node — `Pos` yields `[Nat, Int, Real]`, `Real`
 yields `[Int, Nat, Pos]` — in ascending distance, and only the head
 constructor is widened (`Nat` has supersorts; `List(Nat)` does not). The
@@ -145,13 +147,13 @@ point it tries the alternatives and recurses. Because inference must pick not
 just *a* typing but the *best* one, every leaf of the search is scored by a
 lexicographic **measure**, and the solver keeps the single best leaf:
 
-- each `Sub`, `Lit` and `Join` source contributes one measure component — `0`
+- each [`Sub`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Sub), [`Lit`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Lit) and [`Join`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Join) source contributes one measure component — `0`
   for an exact match, and a larger number for a wider coercion (the number of
   steps up the sub-sort chain);
 - components are ordered by generation position, earlier ones most
   significant, so a coercion high in the expression tree costs more than one
   deep inside it;
-- `Disjunction` and `Comprehension` contribute *no* component of their own
+- [`Disjunction`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Disjunction) and [`Comprehension`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Comprehension) contribute *no* component of their own
   but are explored exhaustively.
 
 The minimum measure is the most specific typing: equality beats widening,
@@ -190,7 +192,7 @@ equation is accepted rather than reported as underdetermined.
 
 The inferred sorts are recorded in side tables mapping each expression to its
 resolved sort and each name occurrence to the chosen overload, keyed by the
-same `ExprId` numbering the generator used, ready for [lowering](lowering.md)
+same [`ExprId`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/type.ExprId.html) numbering the generator used, ready for [lowering](lowering.md)
 to re-walk.
 
 Because this global ranked search considers the whole equation at once, it
@@ -211,13 +213,13 @@ eqn  f(n) = n;
 ```
 
 Generation numbers the argument `n` before the callee `f`, so by the time
-`f`'s overload `Disjunction` is reached the argument sort is already known to
+`f`'s overload [`Disjunction`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Disjunction) is reached the argument sort is already known to
 be `Nat`. Two disjuncts then unify:
 
 - `f: Nat -> Nat` — the argument `Nat` matches the parameter `Nat` exactly, so
-  the argument's `Sub` contributes measure component `0`;
+  the argument's [`Sub`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Sub) contributes measure component `0`;
 - `f: Int -> Int` — the argument `Nat` must widen to `Int`, one step up the
-  number chain, so the same `Sub` contributes `1`.
+  number chain, so the same [`Sub`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Sub) contributes `1`.
 
 Both branches reach a leaf: the call type-checks either way. The measures
 differ only in that argument component — `[…, 0, …]` versus `[…, 1, …]` — and
@@ -234,7 +236,7 @@ the literal at `Real`. The literal is therefore typed `Pos` and coerced,
 matching the rule that literals take their smallest admissible sort.
 
 For a container example, `s == t` with `s: FSet(Pos)` and `t: Set(Pos)`
-shares one variable `?a` between the operands. The `Join` computes the least
+shares one variable `?a` between the operands. The [`Join`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Join) computes the least
 upper bound $FSet(Pos) \sqcup Set(Pos) = Set(Pos)$, charging one widening step
 to the `FSet(Pos)` source and `0` to the already-`Set(Pos)` source — so both
 operands agree on the least sort that admits them, `Set(Pos)`, and the

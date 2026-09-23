@@ -4,14 +4,14 @@ Phase 2 of the pipeline computes the *signature* — the book's $(S, C, M)$ trip
 (Definition 15.1.5): the declared sorts, constructors and mappings, resolved as
 overload sets per name. While computing it, Phase 2 checks the well-typedness
 conditions of Definition 15.1.7, and maps every declaration-level sort
-expression onto the interned [`ResolvedSort`
-lattice](sort-inference.md#the-sort-lattice) that the rest of the pipeline
+expression onto the interned [`ResolvedSort`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html)
+[lattice](sort-inference.md#the-sort-lattice) that the rest of the pipeline
 shares.
 
 ## The `(S, C, M)` signature
 
 [`Signature`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html) is a plain lookup table: each constructor/mapping name maps to a
-`Vec<ResolvedSortId>`, one entry per overload — mCRL2 allows a name to be
+[`Vec`](https://doc.rust-lang.org/std/vec/struct.Vec.html) of [`ResolvedSortId`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/type.ResolvedSortId.html)s, one entry per overload — mCRL2 allows a name to be
 declared more than once as long as the declarations are separated by sort or
 arity, and duplicate declarations of the exact same symbol collapse into one
 entry rather than two. Building it is idempotent and memoized on the checking
@@ -21,11 +21,14 @@ recomputing it.
 ## Polymorphic schemes
 
 Alongside [`constructors`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html#structfield.constructors)/[`mappings`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html#structfield.mappings), [`Signature`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html) carries a third, name-keyed
-table, `schemes: HashMap<String, Vec<PolySortScheme>>`. A [`PolySortScheme`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html)
-pairs a [`ResolvedSortId`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/type.ResolvedSortId.html) — resolved from a template's own declaration, so it
-may contain [`ResolvedSort::Var`](sort-inference.md#the-sort-lattice)
-at any depth — with the [`TypeVarId`](https://mercorg.github.io/merc/merc_syntax/type.TypeVarId.html)s it binds. It is *not* a ground overload:
-using one means instantiating it, substituting each bound variable for a
+table, [`schemes`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html#structfield.schemes), a [`HashMap`](https://doc.rust-lang.org/std/collections/struct.HashMap.html) from name to a [`Vec`](https://doc.rust-lang.org/std/vec/struct.Vec.html) of schemes. A [`PolySortScheme`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html)
+is a single-field wrapper around a [`ResolvedSortId`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/type.ResolvedSortId.html) —
+`struct PolySortScheme { sort: ResolvedSortId }` — resolved from a template's own declaration, so it
+may contain [`ResolvedSort::TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar) (see [the sort lattice](sort-inference.md#the-sort-lattice)) at any depth. It does *not*
+separately store which [`TypeVarId`](https://mercorg.github.io/merc/merc_syntax/type.TypeVarId.html)s it binds: instantiation discovers them dynamically, by
+walking the resolved sort tree and matching a [`ResolvedSort::TypeVar(id)`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar) node wherever one occurs —
+see [`instantiate_scheme`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.ConstraintGenerator.html#method.instantiate_scheme).
+It is *not* a ground overload: using one means instantiating it, substituting each bound variable for a
 fresh unification variable (see
 [the polymorphic signature](system-specification.md#the-polymorphic-signature)
 for the container/function-update/comparison operators that populate this
@@ -100,7 +103,8 @@ because they need two different views of the specification:
 ## Sort resolution
 
 Finally, every declaration-level [`SortExpression`](https://mercorg.github.io/merc/merc_syntax/type.SortExpression.html) is mapped onto the interned
-`ResolvedSort` lattice, memoized per `DefId` on the checking context so a sort
+[`ResolvedSort`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html) lattice, memoized per [`SortId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.SortId.html) on the checking context
+([`sort_of_def`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.sort_of_def)) so a sort
 already interned once is looked up rather than rebuilt. From this point on, sort
 inference and lowering never touch a [`SortExpression`](https://mercorg.github.io/merc/merc_syntax/type.SortExpression.html) again — every sort in
 the pipeline is a small interned [`ResolvedSortId`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/type.ResolvedSortId.html). See [Sort
