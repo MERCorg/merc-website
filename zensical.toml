@@ -45,7 +45,8 @@ nav = [
     { "Specification" = [
       "developer/specification/index.md",
     ] },
-    { "Symbolic Parity Games" = [
+    { "Symbolic" = [
+      "developer/symbolic/saturation.md",
       "developer/symbolic/zielonka.md",
       "developer/symbolic/partial-solving.md",
     ] },
