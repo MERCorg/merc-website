@@ -1,0 +1,3 @@
+# The ACM Digital Library rejects non-browser clients with 403 Forbidden.
+^https://doi\.org/10\.1145/
+^https://dl\.acm\.org/
