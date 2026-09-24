@@ -32,22 +32,41 @@ sorts are equal exactly when their indices are equal — a sort comparison is a
 single integer comparison. Sub-sorts are stored as indices too, so a
 [`ResolvedSort`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html) is small and structural equality never has to recurse.
 
-These sorts form a **lattice** under the sub-sort ordering that the implicit
-coercions define:
+These sorts form a **lattice** under a sub-sort ordering that follows the
+mCRL2 book's own subtyping relation (Definition 15.1.8):
 
 - the number sorts form a chain $Pos \leq Nat \leq Int \leq Real$;
 - the finite containers embed into their unbounded counterparts,
-  $FSet(S) \leq Set(S)$ and $FBag(S) \leq Bag(S)$, when the element sorts are
-  equal;
+  $FSet(S) \leq Set(S)$ and $FBag(S) \leq Bag(S)$;
+- container sorts are **covariant** in their element: $op(S) \leq op(T)$
+  whenever $S \leq T$, for any container constructor `op`, and the two steps
+  above compose — $FSet(Pos) \leq Set(Nat)$ combines the finiteness step with
+  the element widening;
+- function sorts are **contravariant** in their domain and **covariant** in
+  their range, e.g. $(Nat \to Int) \leq (Pos \to Real)$;
 - all other distinct sorts are incomparable.
 
 The lattice supplies a **join** (least common supersort) and **meet**
-(greatest common subsort). A join is what lets two branches of an `if`, or the
-two sides of an equation, meet at a single common sort: joining `Nat` and
-`Int` yields `Int`, and joining `FSet(Pos)` and `Set(Pos)` yields `Set(Pos)`.
-This directly models the numeric up-casting and container widening that the
-surface language performs silently, but as a clean lattice operation rather
-than a collection of special cases.
+(greatest common subsort) over this ordering. A join is what lets two
+branches of an `if`, or the two sides of an equation, meet at a single common
+sort: joining `Nat` and `Int` yields `Int`, and joining `FSet(Pos)` and
+`Set(Pos)` yields `Set(Pos)`.
+
+Not every step in this ordering has a coercion that can actually build the
+wider term, though. Only a sub-relation of it is
+[**materializable**](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/struct.SortInterner.html#method.is_materializable):
+the number chain, and the FSet/Set and FBag/Bag finiteness step when the
+element sorts are already equal — exactly the coercions the surface language
+inserts silently. Element-wise container covariance ($List(Pos) \leq
+List(Nat)$) and function-sort variance are genuine entries in the sub-sort
+order — the book's laws hold for them, and they let a `partial_cmp` or a
+`join`/`meet` succeed — but there is no elementwise traversal, nor a
+function-value coercion, that can materialize them into an actual term. The
+solver's widening search (see below) only ever enumerates materializable
+moves, so an equation that would need one of these wider steps is rejected
+rather than accepted with a phantom coercion; `join` and `meet` operate over
+the full ordering but fall back to solving each source independently when
+their result turns out not to be materializable.
 
 ## Constraint generation
 
@@ -134,9 +153,13 @@ sub-sort ordering is handled one level up, by the solver: unification never
 silently widens `Nat` into `Int`. Instead, the [`Unifier`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/struct.Unifier.html) exposes the strict
 super-sorts and sub-sorts of a node — `Pos` yields `[Nat, Int, Real]`, `Real`
 yields `[Int, Nat, Pos]` — in ascending distance, and only the head
-constructor is widened (`Nat` has supersorts; `List(Nat)` does not). The
-solver enumerates these candidates explicitly when a plain equality does not
-hold. This separation keeps unification simple and total, and confines every
+constructor is widened (`Nat` has supersorts; `List(Nat)` does not). This is
+the **materializable** relation from the lattice section above, not the full
+sub-sort ordering: it is exactly the set of coercions the solver is allowed
+to insert, so container-element covariance and function variance never show
+up as candidates here even though they hold in the lattice. The solver
+enumerates these candidates explicitly when a plain equality does not hold.
+This separation keeps unification simple and total, and confines every
 coercion decision to the ranked search where it can be measured and compared.
 
 ## Ranked backtracking search
