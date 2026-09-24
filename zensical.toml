@@ -15,7 +15,6 @@ nav = [
     "developer/general.md",
     "developer/testing.md",
     "developer/documentation.md",
-    "developer/enumeration.md",
     { "Symmetry" = [
       "developer/symmetry/symmetry-detection-graph.md",
       "developer/symmetry/canonicalize-orbit.md",
@@ -25,10 +24,13 @@ nav = [
       "developer/rewriting/set-automaton.md",
       "developer/rewriting/machine-numbers.md",
       "developer/rewriting/condition-caching.md",
+      "developer/rewriting/lowering.md",
+      "developer/rewriting/enumeration.md",
     ] },
     { "Parsing" = [
       "developer/parsing/disambiguation.md",
       "developer/parsing/precedence.md",
+      "developer/parsing/source_map.md",
     ] },
     { "Type Checking" = [
       "developer/typechecking/index.md",
@@ -36,10 +38,11 @@ nav = [
       "developer/typechecking/desugaring.md",
       "developer/typechecking/signature.md",
       "developer/typechecking/system-specification.md",
-      "developer/typechecking/spec-includes.md",
       "developer/typechecking/polymorphism.md",
       "developer/typechecking/sort-inference.md",
-      "developer/typechecking/lowering.md",
+      "developer/typechecking/inference/index.md",
+      "developer/typechecking/inference/unification.md",
+      "developer/typechecking/inference/solver.md",
       "developer/typechecking/typing-info.md",
     ] },
     { "Specification" = [
