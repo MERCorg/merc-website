@@ -18,48 +18,6 @@ produced by the parser. Rather than performing all of this in one recursive
 traversal, we split type checking into a **pipeline of phases**, each with a
 well-defined input and output, see the phases below.
 
-
-## Overview
-
-<div align="center">
-
-```math
-
-\begin{tikzpicture}[
-  every node/.style={font=\small},
-  stage/.style={draw, rounded corners=6pt, minimum width=7.4cm, minimum height=1.1cm, align=center},
-  phase/.style={draw, dashed, rounded corners=4pt, minimum width=6.8cm, minimum height=0.9cm, align=center, font=\scriptsize}
-]
-
-\node[stage] (untyped) at (0,0) {UntypedDataSpecification \\ \scriptsize(merc\_syntax AST)};
-
-\node[phase] (phase0) at (0,-1.9) {Phase 0 -- sort layer\\ flatten, name resolution, alias checks, normalization};
-
-\node[phase] (phase1) at (0,-3.4) {Phase 1 -- desugaring and operator lowering};
-
-\node[phase] (phase2) at (0,-4.9) {Phase 2 -- signature $(S, C, M)$ + well-typedness checks\\ sort resolution onto the interned lattice};
-
-\node[phase] (phase3) at (0,-6.4) {Phase 3 -- constraint-based sort inference\\ (per equation, memoized)};
-
-\node[stage] (typed) at (0,-8.2) {Typed specification + sort assignment \\ \scriptsize(ExprId $\to$ ResolvedSort)};
-
-\node[phase] (phase4) at (0,-9.7) {Phase 4 -- lowering};
-
-\node[stage] (lowered) at (0,-11.1) {merc\_data::Mcrl2DataSpecification \\ \scriptsize(aterm, fully typed)};
-
-\draw[->, thick] (untyped) -- (phase0);
-\draw[->, thick] (phase0) -- (phase1);
-\draw[->, thick] (phase1) -- (phase2);
-\draw[->, thick] (phase2) -- (phase3);
-\draw[->, thick] (phase3) -- (typed);
-\draw[->, thick] (typed) -- (phase4);
-\draw[->, thick] (phase4) -- (lowered);
-
-\end{tikzpicture}
-```
-
-</div>
-
 During type checking sorts are interned indices into a standalone arena, so
 equality is a single integer comparison and typings live in compact side tables
 keyed by expression id. Only the final lowering phase produces the maximally
@@ -71,27 +29,28 @@ consumes.
 This part of the documentation is split one page per pass, plus one page per
 specification kind built on top of them:
 
- - **[Sort & Name Resolution](name-resolution.md)** — Phase 0: sort name
+ - **[Phase 0: Sort & Name Resolution](name-resolution.md)** — Sort name
    resolution, alias-cycle checks, and canonicalization.
- - **[Desugaring](desugaring.md)** — Phase 1: structured sorts to
+ - **[Phase 1: Desugaring](desugaring.md)** — Structured sorts to
    constructors/recognisers/projections, built-in operators to applications.
- - **[Signature & Well-Typedness](signature.md)** — Phase 2: the $(S, C, M)$
+ - **[Phase 2: Signature & Well-Typedness](signature.md)** — The $(S, C, M)$
    triple and well-typedness conditions.
- - **[The System-Defined Specification](system-specification.md)** —
+ - **[Phase 3: The System-Defined Specification](system-specification.md)** —
    Appendix B's standard data types, why they're checked apart from the
-   user's own declarations, and how a system equation is type checked
-   against a deliberately narrower view of the polymorphic built-ins.
- - **[Source Maps, Imports & Virtual Templates](spec-includes.md)** — the
-   shared [`SourceMap`](https://mercorg.github.io/merc/merc_utilities/source_map/struct.SourceMap.html) byte-offset space, `%import` file composition, and how
-   generated system-defined content gets real, renderable declaration spans.
- - **[Type Variables & Polymorphic Schemes](polymorphism.md)** — the
+   user's own declarations, how a system equation is type checked against a
+   deliberately narrower view of the polymorphic built-ins, and how it is
+   loaded into the shared source map.
+ - **[Phase 4: Type Variables & Polymorphic Schemes](polymorphism.md)** — the
    `type_var` block, [`ResolvedSort::TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar), and how a scheme like
    `in: S # List(S) -> Bool` is resolved once and instantiated fresh at
    every use site.
- - **[Sort Inference](sort-inference.md)** — Phase 3: the sort lattice,
+ - **[Phase 5: Sort Inference](sort-inference.md)** — The sort lattice,
    constraint generation, unification with subtyping, and the ranked
    backtracking search — the heart of the crate.
- - **[Lowering](lowering.md)** — Phase 4: emitting aterms, binary-aterm
+     - **[Inference Internals](inference/index.md)** — the implementation
+       behind that page, function by function: the `Unifier`'s arena and
+       union-find split, and the constraint generator/solver's pseudocode.
+ - **[Phase 6: Lowering](lowering.md)** — Phase 4: emitting aterms, binary-aterm
    compatibility, and the known divergences from the mCRL2 toolset.
 
 **Specification kinds built on the pipeline above:**

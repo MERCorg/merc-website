@@ -1,10 +1,10 @@
-# Signature & Well-Typedness
+# Phase 2: Signature & Well-Typedness
 
-Phase 2 of the pipeline computes the *signature* — the book's $(S, C, M)$ triple
+This pipeline computes the *signature* — the book's $(S, C, M)$ triple
 (Definition 15.1.5): the declared sorts, constructors and mappings, resolved as
 overload sets per name. While computing it, Phase 2 checks the well-typedness
 conditions of Definition 15.1.7, and maps every declaration-level sort
-expression onto the interned [`ResolvedSort`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html)
+expression onto the interned resolved sort
 [lattice](sort-inference.md#the-sort-lattice) that the rest of the pipeline
 shares.
 

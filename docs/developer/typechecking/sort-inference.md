@@ -4,12 +4,14 @@
 ```
 # Sort Inference
 
-Phase 3 of the pipeline is the heart of the crate: given a fully desugared
-equation and a [signature](signature.md) to resolve names against, it decides
-the sort of every sub-expression, choosing between overloaded operators and
-inserting the implicit coercions the surface language leaves out. It runs **per
-equation**, as a memoized query, in two steps — constraint generation, then a
-ranked backtracking search — both described in detail below.
+Given a fully desugared equation and a [signature](signature.md) to resolve
+names against, it decides the sort of every sub-expression, choosing between
+overloaded operators and inserting the implicit coercions the surface language
+leaves out. This page covers the algorithm; see [Inference
+Internals](inference/index.md) for a function-by-function implementation
+walkthrough with pseudocode. It runs **per equation**, as a memoized query, in
+two steps — constraint generation, then a ranked backtracking search — both
+described in detail below.
 
 ## The sort lattice
 
@@ -23,20 +25,15 @@ of:
 - a nominal sort [`Def(d)`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.Def), identified by the declaration `d` it resolves to;
 - a [`Unit`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.Unit) sort, used internally for the result of an action;
 - a bound type variable [`TypeVar(v)`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar), identified by the `type_var` declaration
-  `v` it resolves to — see [Type Variables & Polymorphic
-  Schemes](polymorphism.md). It only ever appears inside a *scheme*'s own
-  interned sort (a container/function-update template, or the comparison/`if`
-  schemes), never in an ordinary equation's inferred sort: instantiating a
-  scheme replaces every [`TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar) with a fresh unification variable before that
-  scheme reaches the constraint generator.
+  `v` it resolves to.
 
 Because sorts are **interned**, each distinct sort is stored once and two
 sorts are equal exactly when their indices are equal — a sort comparison is a
 single integer comparison. Sub-sorts are stored as indices too, so a
 [`ResolvedSort`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html) is small and structural equality never has to recurse.
 
-Unlike the plain set of sorts in the book, these sorts form a **lattice**
-under the sub-sort ordering that the implicit coercions define:
+These sorts form a **lattice** under the sub-sort ordering that the implicit
+coercions define:
 
 - the number sorts form a chain $Pos \leq Nat \leq Int \leq Real$;
 - the finite containers embed into their unbounded counterparts,

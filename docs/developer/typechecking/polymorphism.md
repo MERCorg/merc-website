@@ -72,8 +72,8 @@ exactly one place to look, not a separate polymorphic table on the side:
   bundled template file, and no fixed arity to declare a scheme for ahead of
   time. Instead, the first time a given arity is encountered at a call site,
   [`typecheck_function_update_template`](https://mercorg.github.io/merc/merc_typecheck/signature/standard_sorts/fn.typecheck_function_update_template.html) generates that arity's template text
-  programmatically, type-checks it once (rigidly, the same as the bundled
-  templates below), and merges its one new scheme permanently into
+  programmatically, [type-checks it once](#checking-a-templates-equations-once-rigidly)
+  like the bundled templates, and merges its one new scheme permanently into
   [`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature) so later call sites of the same arity reuse it.
 - Every role — checking the user's own equations, `system`'s basics and
   desugared-struct equations, and a template's own equations — shares the
@@ -91,21 +91,32 @@ rest) are checked exactly once per template, not once per instantiation:
 Phase-3 inference runs over them with the template's `type_var`-declared
 sort(s) held **rigid** — a skolem constant rather than a unification variable
 — and the result, a [`TemplateCheck { type_vars, typings }`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html), is memoized on the
-checking context. [`type_vars`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html#structfield.type_vars) here is collected directly from the template's
+checking context. This happens unconditionally while a
+[`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html) is built, regardless of whether the specification
+being checked ever uses a container at all.
+
+Rigidity is what makes checking once sound, the same "generalize, then
+instantiate fresh at each use" discipline let-polymorphism relies on: proving
+an equation holds for an arbitrary, unconstrained `S` entails it holds for
+every particular `S` a caller later substitutes, so `@zero_ == @one_` need
+never be checked again for `Bag(Nat)`, `Bag(D)`, or any other concrete
+instantiation. A user specification using several different container
+element sorts pays this cost exactly once per template, not once per element
+sort.
+
+[`type_vars`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html#structfield.type_vars) here is collected directly from the template's
 own `type_var` declarations. [`PolySortScheme`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html) itself carries no equivalent
 list — it stores only the scheme's interned [`sort`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html#structfield.sort) — since instantiation
 never needs a scheme's bound variables as precomputed data; it discovers them
 structurally by walking [`sort`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html#structfield.sort) and collecting every [`TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar) node it finds.
 Specialization uses [`TemplateCheck.type_vars`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html#structfield.type_vars), together with the concrete sorts
 each
-[`TemplateInstantiation`](system-specification.md#materializing-ground-content-at-lowering-time)
+[`TemplateInstantiation`](lowering.md#materializing-ground-content-at-lowering-time)
 records, to turn that one proven typing into the typing of a concrete
-instantiation by substitution instead of re-inference. See [Checking the
-container templates: once,
-rigidly](system-specification.md#checking-the-container-templates-once-rigidly)
-and [Materializing ground content at lowering
-time](system-specification.md#materializing-ground-content-at-lowering-time)
-for where each half of this runs.
+instantiation by substitution instead of re-inference; see [Materializing
+ground content at lowering
+time](lowering.md#materializing-ground-content-at-lowering-time) for where
+that half runs.
 
 ## Instantiating a scheme
 
@@ -130,17 +141,8 @@ scheme's [`sort`](https://mercorg.github.io/merc/merc_typecheck/signature/signat
 
 The bundled template files are registered into the shared [`SourceMap`](https://mercorg.github.io/merc/merc_utilities/source_map/struct.SourceMap.html) as
 virtual documents (e.g. `<builtin>/list.mcrl2`), the same offsetting technique
-[`%import` resolution](name-resolution.md) uses. This is what lets the checking
+[`%import` resolution](../parsing/source_map.md) uses (see [Loading system-defined content into the source map](system-specification.md#loading-system-defined-content-into-the-source-map)). This is what lets the checking
 context's table of system symbol spans ([`system_symbol_spans`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.system_symbol_spans)) — and so
 [`ResolvedName::SystemDefined`](https://mercorg.github.io/merc/merc_typecheck/typing_info/enum.ResolvedName.html#variant.SystemDefined)'s [`declaration`](https://mercorg.github.io/merc/merc_typecheck/typing_info/enum.ResolvedName.html#variant.SystemDefined.field.declaration) (see [typing info](typing-info.md)) — carry a real,
 renderable span for a system-defined constructor or mapping (`[]: List(S)`,
-`in`, …) instead of an empty placeholder span: hovering or jumping to one of
-these symbols lands in the actual bundled `.mcrl2` source, not nowhere.
-
-## What's still open
-
-Whether a user specification should ever be allowed to declare its own
-`type_var` block — reaching user-facing generics, rather than staying an
-internal representation used only for Appendix B — remains open. Nothing
-described above requires it; every `type_var` block in the pipeline today
-comes from a bundled template, never from user-written `mcrl2` text.
+`in`, …) instead of an empty placeholder span.

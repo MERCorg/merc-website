@@ -1,14 +1,9 @@
-# Desugaring
+# Phase 1: Desugaring
 
 This page covers three transforms that turn surface syntax with special-cased
 structure into plain applications and declarations, so later phases have a
 single uniform code path to walk instead of one special case per surface
-construct. They are not one contiguous early phase, but run at three different
-points spread across the pipeline: anonymous-struct hoisting runs first, before
-[sort-name resolution](name-resolution.md) does any of its work; struct
-desugaring runs later, inside that same sort layer, after alias checks; and
-operator lowering runs well after the sort layer is entirely done, once sort
-inference itself has finished.
+construct.
 
 ## Structured sorts
 
@@ -17,9 +12,7 @@ constructors, recognisers, and projection functions. The defining equations
 (recognisers, projections, and the `==`/`<`/`<=`/`less_total` orderings) are
 generated into the [system-defined specification](system-specification.md)
 that accompanies the user's specification, following Appendix B.10 of the
-book. `<` is already total over a `struct`'s own constructors (lexicographic
-on equal constructors, by constructor index otherwise), so `less_total` just
-reuses it there rather than generating a second copy of the same equations.
+book.
 
 ### Anonymous structs
 
@@ -60,11 +53,9 @@ sort.
 ## Operator lowering
 
 Built-in operator syntax is lowered into plain applications — `x == y` becomes
-`==(x, y)`, the list cons `[x]` becomes an application of the cons operator,
-and so on — so that sort inference (Phase 3) has a single application code
-path instead of a special case for every operator syntax form. Number and
-container literals (`0`, `[]`, `{}`) are deliberately kept as their own
-dedicated expression nodes rather than lowered to applications, because their
-sort is chosen by inference itself (a literal's minimal admissible sort, an
-empty container's element sort) rather than declared anywhere — there is no
-application to lower them to.
+`==(x, y)`, the list cons `[x]` becomes an application of the cons operator, and
+so on — so that following phases have a single application code path instead of
+a special case for every operator syntax form. Number and container literals
+(`0`, `[]`, `{}`) are deliberately kept as their own dedicated expression nodes
+rather than lowered to applications, because their sort is chosen by inference
+itself rather than declared anywhere.

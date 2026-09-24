@@ -1,4 +1,4 @@
-# The System-Defined Specification
+# Phase 3: The System-Defined Specification
 
 The standard data types of Appendix B — `Bool`, `Pos`, `Nat`, `Int`, `Real`,
 the `List`, `Set`, `Bag`, `FSet`, `FBag` containers, and function updates — are
@@ -97,143 +97,46 @@ not a bespoke one:
   name resolves against.
 
 Nothing here needs an unconditional, inference-free structural safety net the
-way the generated container content described next does: `system` is a fixed,
+way the [generated container
+content](lowering.md#materializing-ground-content-at-lowering-time) does: `system` is a fixed,
 finite AST assembled once, and every rule above either runs the exact code a
 user declaration's own well-typedness already trusts, or is a real check
 against generated content that would otherwise sail through unnoticed
 (the signature-layer checks over `basics`).
-
-## Checking the container templates: once, rigidly
-
-A container/function-update template (`list.mcrl2`, `set.mcrl2`, …) is parsed
-once, with its own `type_var S;` block, and never re-parsed per instantiation.
-Its constructor/mapping declarations become [`PolySortScheme`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html)
-([polymorphic signature](#the-polymorphic-signature)) entries in the one pooled signature; its own defining equations —
-`bag.mcrl2`'s `@zero_ == @one_`, and the rest — are checked exactly **once**,
-with the template's type variable(s) held **rigid**: a skolem constant, not a
-unification variable, for the duration of that one check. This happens
-unconditionally while a [`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html) is built, regardless of whether the
-specification being checked ever uses a container at all, and the result — a
-[`TemplateCheck`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html) per template, with fields [`type_vars`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html#structfield.type_vars) and [`typings`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html#structfield.typings) — is memoized on the
-checking context.
-
-Rigidity is what makes checking once sound, the same "generalize, then
-instantiate fresh at each use" discipline let-polymorphism relies on: proving
-an equation holds for an arbitrary, unconstrained `S` entails it holds for
-every particular `S` a caller later substitutes, so `@zero_ == @one_` need
-never be checked again for `Bag(Nat)`, `Bag(D)`, or any other concrete
-instantiation. A user specification using several different container
-element sorts pays this cost exactly once per template, not once per element
-sort — see [Why polymorphism at all](#why-polymorphism-at-all) for the
-tradeoff this embodies more broadly.
-
-A multi-argument function update (arity > 1) has no single bundled template —
-the checker builds and checks a generic one for whichever arities actually
-occur, the first time each is seen, temporarily merging its own scheme into the
-pooled signature for the duration of that one check (its
-`@func_update`/`@is_not_an_update`/… names would otherwise fail to unify
-against an arity it wasn't declared for) and caching the result under
-`"function_update_{arity}"`, the same table the bundled templates use.
-
-## Materializing ground content at lowering time
-
-Container/function-update/comparison operations stay schemes for as long as
-type checking runs — see [Why it is not type-checked as a user
-specification](#why-it-is-not-type-checked-as-a-user-specification) for why
-concrete overloads are never resolved into the signature alongside them. A
-rewriter has no representation for a scheme, though: [lowering](lowering.md)
-needs concrete constructors, mappings and equations for exactly the container,
-function-update and comparison instantiations the specification actually
-uses. It builds them fresh, once, for that call:
-
-- **A syntactic pass** walks a worklist fixpoint over
-  [`spec`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html#structfield.spec)'s own textual sort occurrences (a `Set(S)` pulls in `FSet(S)`; a
-  function sort pulls in the function-update operators for its arity), and
-  independently, uniformly, over *every* sort for the comparison operators.
-  For each sort it discovers, it clones the matching template's declarations
-  and equations and **substitutes** the concrete sort for the template's bound
-  type variable — a syntactic substitution walk over the template's own AST,
-  not a fresh parse and not a fresh resolution pass: the substituted sort node
-  is already a resolved [`Resolved`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Resolved)`(name, `[`SortId`](https://mercorg.github.io/merc/merc_syntax/type.SortId.html)`)` node, copied in from the user's
-  own already-resolved sort tree.
-- **A second, inference-driven pass** catches what that syntactic scan cannot
-  see: the element sort of a `List`/`Set`/`Bag` enumeration literal
-  (`[1, 2, 3]`, `{1, 2}`) or a bare numeral is never written down anywhere in
-  the source — it is purely a product of Phase-3 inference — so this replays
-  the same worklist against every sort that shows up in an already-typed
-  equation's own inferred sorts, diffed against what the syntactic pass
-  already covered.
-- **Each generated equation is then specialized from its template's
-  already-proven, rigid typing by substitution — one [`TemplateInstantiation`](https://mercorg.github.io/merc/merc_typecheck/lowering/instantiate/struct.TemplateInstantiation.html)
-  per generated block — instead of re-running inference.** This is the same
-  "prove once, specialize by substitution" step described
-  [above](#checking-the-container-templates-once-rigidly), applied at the point
-  the specialization is actually needed. Two
-  instantiations of the same template (`Bag(Nat)`, `Bag(D)`) never collide the
-  way an earlier design's grouping machinery had to guard against, because
-  neither one is independently *inferred* at all — there is nothing left to
-  tie or disambiguate.
-- **One unconditional, inference-free structural safety net remains**, run
-  once over the generated content
-  merged with `system` (so a generated equation referencing a basic-sort
-  operator by name resolves correctly). Nothing else ever checks this
-  content's own names and sort references — substitution, not inference,
-  produced it — so this stays a raw, syntactic walk: every sort reference is
-  declared and every [`Resolved`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Resolved) node indexes a real sort declaration; no `var`
-  block declares a variable twice; the free variables of a condition and
-  right-hand side occur in the left-hand side; and no constructor targets a
-  function sort (the one 15.1.7 signature rule this generated content does
-  *not* legitimately break — a hit here is always a bug in a `spec/*.mcrl2`
-  template, not a false positive). It deliberately does **not** re-check
-  constructor/mapping disjointness or duplicate-constant-different-sort: `[]:
-  List(D)` and `[]: List(E)` are meant to both exist once both sorts occur,
-  the same intentional exemption the pre-lowering signature never had to make
-  because these declarations were never resolved into it at all. Should never
-  fail for a well-formed template — a failure here is a bug in the generator,
-  not in anything the user wrote, so it panics rather than threading a
-  [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html) through lowering.
 
 ## Name resolution inside a system equation
 
 Within the shared Phase-3 entry point, an [`EquationRole`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html) selects
 where a binder/equation-variable's declared sort resolves from and which spec
 an [`EqnSpecId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.EqnSpecId.html) indexes into — it does **not** select which signature a name
-resolves against. All three roles resolve every name against the same single
-pooled [`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature), with every candidate visible unfiltered, and share
-identical constraint generation, unification and ranked search:
+resolves against. [`User`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.User), [`System`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.System) and
+[`Template`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.Template) all resolve every name, in the same order, against the same
+single pooled [`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature) — every user declaration, `basics`'s own
+operators, and every container/function-update/comparison scheme — with every
+candidate visible unfiltered, and share identical constraint generation,
+unification and ranked search. Neither of the generated roles needs a
+narrower table of its own: there is no separate scheme table for
+struct-scoped system equations, and a template is checked with its own
+scheme already merged into that signature unconditionally. Declared-sort
+resolution is shared the same way, memoized per
+([`EquationRole`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html), [`VarId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.VarId.html)).
 
-| | User ([`EquationRole::User`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.User)) | `system` equation ([`EquationRole::System`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.System)) | Container template's own equations ([`EquationRole::Template`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.Template)) |
-|---|---|---|---|
-| Name resolution order | [`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature) (the full pooled signature — every user declaration, `basics`'s own operators, and every container/function-update/comparison scheme) | [`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature), exactly as [`User`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.User) and [`Template`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.Template) — every candidate is visible unfiltered; there is no separate, narrower scheme table for struct-scoped system equations | [`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature), exactly as [`User`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.User) — checked with the template's own scheme already present in it, since signature construction merges every template's scheme in unconditionally |
-| Declared-sort resolution | memoized per ([`EquationRole`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html), [`VarId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.VarId.html)) | memoized per ([`EquationRole`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html), [`VarId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.VarId.html)), the same as [`User`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.User) | memoized per ([`EquationRole`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html), [`VarId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.VarId.html)), the same as [`User`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html#variant.User) |
-| Equation typing | inferred per equation | inferred per equation, or specialized by substitution when a [`TemplateInstantiation`](https://mercorg.github.io/merc/merc_typecheck/lowering/instantiate/struct.TemplateInstantiation.html) covers the block | inferred once, rigidly, per template |
-| Memoized in | [`ctx.equation_typing`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.equation_typing) | [`ctx.system_equation_typing`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.system_equation_typing) | [`ctx.template_typings`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.template_typings) |
-| Contributes to [`TypingInfo`](https://mercorg.github.io/merc/merc_typecheck/typing_info/struct.TypingInfo.html) | yes | no — a system equation has no source span in the user's document to attribute a typed node to | no |
-
-A per-struct signature-scoping mechanism used to exist here: a struct's own
-recogniser/projection/comparison equations resolve `is_c1`/`pr1`/`==`, and an
-earlier design built a narrower, struct-scoped override once per struct while
-the [`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html) was constructed — filtering the full signature down
-to that struct's own constructor/mapping names and merging in the basic-sort
-operators — so that an unrelated struct's same-named field could not leak in
-as a spurious extra overload. It was deliberately removed: it special-cased
-compiler-generated struct equations rather than fixing name resolution in
-general, so the byte-identical collision written out by hand as ordinary user
-content was rejected regardless of whether the scoping was in place.
-
-Every [`EquationRole`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html) now resolves against the one pooled, unfiltered
-[`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature), and a struct-name collision across two unrelated structs'
-constructors or mappings — a nullary constructor of one struct sharing a name
-with an unrelated struct's ≥1-ary constructor, or two structs whose
-constructors share a name at the same arity — is an accepted, unprevented
-regression rather than something the checker routes around. See the
-[`system_resolution`](https://mercorg.github.io/merc/merc_typecheck/signature/system_resolution/index.html) module's
-`test_struct_nullary_constant_colliding_with_unrelated_struct_function_is_rejected`
-and `test_two_structs_sharing_same_arity_constructor_name_is_rejected` tests
-for the accepted failure cases, and
-`test_user_written_equivalent_of_bug_1_is_still_rejected` for the hand-written
-equivalent that shows the collision was never actually about struct-generated
-content specifically.
+Where the roles diverge is in how the resulting equation typing is computed,
+stored, and fed back. `User` and `System` equations are both inferred per
+equation — but for `System` that covers only `system`'s own basics and
+desugared-struct equations. The Appendix-B container/function-update/comparison
+blocks a [`TemplateInstantiation`](https://mercorg.github.io/merc/merc_typecheck/lowering/instantiate/struct.TemplateInstantiation.html) covers skip inference
+entirely: they were already [proven once per
+template](polymorphism.md#checking-a-templates-equations-once-rigidly) when
+`Template` checked them, and each instantiation site just substitutes that proven typing
+straight into [`ctx.system_equation_typing`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.system_equation_typing) — the
+same table `System` inference itself populates, so that table ends up filled
+by two disjoint routes rather than by inference alone. Otherwise each role
+memoizes into its own table: [`ctx.equation_typing`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.equation_typing) for `User`,
+`ctx.system_equation_typing` for `System`, and
+[`ctx.template_typings`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.template_typings) for `Template`. And only `User` contributes to
+[`TypingInfo`](https://mercorg.github.io/merc/merc_typecheck/typing_info/struct.TypingInfo.html), since neither a system equation nor a template's has
+a source span in the user's document to attribute a typed node to.
 
 ## The polymorphic signature { #the-polymorphic-signature }
 
@@ -265,53 +168,35 @@ according to how many sorts they range over:
 This mirrors mCRL2's own polymorphic built-in symbol table. Concrete,
 per-sort instantiations of these operations are never resolved into
 [`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature) at all — only into the generated content
-[lowering builds](#materializing-ground-content-at-lowering-time) on demand,
+[lowering builds](lowering.md#materializing-ground-content-at-lowering-time) on demand,
 which is never itself re-resolved into a signature, only lowered directly.
 
 ### Why polymorphism at all
 
-Treating these operations polymorphically is ultimately an **optimization,
-not a necessity**. merc could instead fully instantiate every polymorphic
-operation for every element sort that occurs — turning `in: S # List(S) ->
-Bool` into concrete overloads `in: Nat # List(Nat) -> Bool`, `in: Pos #
-List(Pos) -> Bool`, … — and resolve the results into the ordinary signature
-like any user overload, dropping the scheme lookup entirely. That
-instantiation is entirely possible and would accept exactly the same
-specifications; it just used to be how merc worked, before this scheme-based
-representation replaced it. It remains the wrong default because it scales
-poorly: the set of element sorts grows with every nested container, so each
-operation would contribute one concrete overload per sort, enlarging the
-disjunctions the solver must search at every use site. A single template
-instantiated on demand with a fresh unification variable gives inference one
-candidate — its element sort filled in from the arguments — where full
-instantiation would give it many. The scheme also avoids pre-instantiating an
-operation for an element sort that inference pins down only late (the element
-of an empty `[]`, or one supplied by a default), and it keeps merc aligned
-with mCRL2's own polymorphic built-in table.
+Treating these operations polymorphically is not only a performance
+optimization, but required.
 
-!!! note "One subtlety: arithmetic that is also a container operation"
-    `+`, `-` and `*` are both number operators and the `Set`/`Bag` union,
-    difference and intersection operators, so their [`Disjunction`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.Disjunction.html) includes
-    the basic-sort overloads *and* the polymorphic container templates
-    together — the container reading is simply one more disjunct, ruled out
-    like any other by the argument sorts.
+A first approach would be to instead fully instantiate every polymorphic
+operation for every element sort that occurs — turning `in: S # List(S) -> Bool`
+into concrete overloads `in: Nat # List(Nat) -> Bool`, `in: Pos # List(Pos) ->
+Bool`, … — and resolve the results into the ordinary signature like any user
+overload, dropping the scheme lookup entirely. However, pooling every
+instantiation's generated declarations into one flat signature means two
+instantiations of the same template collide under the same names (`[]: List(D)`
+and `[]: List(E)`, `@zero_: Bag(Nat)` and `@zero_: Bag(D)`, …), so checking one
+instantiation's own generated equations can pick up an unrelated instantiation's
+declaration as a spurious extra overload and misreport a well-typed equation as
+ambiguous.
 
-    `merc_typecheck` used to special-case the arithmetic-family names (`+`,
-    `-`, `*`, `/`, `div`, `mod`, `exp`, `max`, `min`) with a direct-lookup
-    fast path that skipped building a [`Disjunction`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.Disjunction.html) for them entirely, to
-    keep equations with many repeated arithmetic sub-expressions from
-    branching combinatorially — see the repeated-arithmetic regression test
-    in the typecheck crate's inference tests for the shape that motivated it.
-    It was removed: `+`/`-`/`*` could never actually take it (they always have
-    the container reading above, so the fast path was
-    permanently unavailable for exactly the three names most likely to
-    repeat in an equation), and measuring the other six names directly
-    against the plain [`Disjunction`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.Disjunction.html) path showed the
-    [branch-and-bound pruning](sort-inference.md#ranked-backtracking-search)
-    already keeps repeated arithmetic tractable on its own — a nine-level
-    nested equation with eighteen `+`/`*` occurrences type checks in a
-    couple of milliseconds either way. The fast path's own bookkeeping cost
-    more than the modest constant factor it saved.
+The scheme-based design removes the need for this. A template's equations are
+proven exactly once against an unresolved type variable (see [Checking a
+template's equations once,
+rigidly](polymorphism.md#checking-a-templates-equations-once-rigidly)), and every concrete
+instantiation is produced afterward purely by substitution, at [lowering
+time](lowering.md#materializing-ground-content-at-lowering-time) — never
+independently inferred. There is never more than one instantiation's
+declarations in play during checking, so there is nothing left to collide, and
+no per-instantiation scoping is needed to prevent it.
 
 ## System-internal sorts { #system-internal-sorts }
 
@@ -325,3 +210,41 @@ sort, with no second namespace, no offset arithmetic, and no reverse lookup to
 keep in sync anywhere. A [`SortId`](https://mercorg.github.io/merc/merc_syntax/type.SortId.html) means "index into the one table," everywhere,
 unconditionally, and a name lookup in [`spec.sort_declarations`](https://mercorg.github.io/merc/merc_syntax/struct.UntypedDataSpecification.html#structfield.sort_declarations) works the same
 way for a user sort and a system-internal one alike.
+
+## Loading system-defined content into the source map { #loading-system-defined-content-into-the-source-map }
+
+The system-defined declarations are registered into the same
+[`SourceMap`](https://mercorg.github.io/merc/merc_utilities/source_map/struct.SourceMap.html)
+the user's own files were parsed into (see [Source Maps &
+Imports](../parsing/source_map.md)), as *virtual* sources with synthetic
+names such as `<builtin>/nat.mcrl2` or `<builtin>/list.mcrl2`. This is why
+building a [`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html)
+takes a `&mut` [`SourceMap`](https://mercorg.github.io/merc/merc_utilities/source_map/struct.SourceMap.html)
+rather than creating its own: pass the one the specification was parsed (and
+`%import`-resolved) against, so a diagnostic or a go-to-definition query can
+point into system-defined content just as it points into a user file. A
+convenience wrapper over a throwaway [`SourceMap`](https://mercorg.github.io/merc/merc_utilities/source_map/struct.SourceMap.html)
+exists for callers that never render a span (most tests).
+
+Only the content that ends up in a concrete specification is registered —
+`basics`, as part of [`system`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html#structfield.system),
+and the per-concrete-sort content instantiated at [lowering
+time](lowering.md#materializing-ground-content-at-lowering-time). The bare
+parse that [`CONTAINER_TEMPLATES`](https://mercorg.github.io/merc/merc_typecheck/signature/standard_sorts/static.CONTAINER_TEMPLATES.html)
+and [`BUILTIN_SCHEME_TEMPLATE`](https://mercorg.github.io/merc/merc_typecheck/signature/standard_sorts/static.BUILTIN_SCHEME_TEMPLATE.html)
+are built from, which feeds [`Signature::schemes`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html#structfield.schemes),
+is never registered and its spans are meaningless against any source map. A
+registered copy reuses that bare AST — cloned, then shifted into its
+registration's base offset — rather than parsing the text a second time.
+
+While [checking `system`](#checking-system-basics-and-desugared-structs), the
+declaration span of every constructor and mapping is recorded in
+[`system_symbol_spans`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.system_symbol_spans),
+keyed by `(name, `[`ResolvedSortId`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/type.ResolvedSortId.html)`)`.
+[LSP support](typing-info.md#lsp-support) falls back to this table for an
+operator that is not one of the user's own declarations, reporting it as
+[`ResolvedName::SystemDefined`](https://mercorg.github.io/merc/merc_typecheck/typing_info/enum.ResolvedName.html#variant.SystemDefined)
+with a real location inside the relevant `<builtin>/*.mcrl2` document.
+Container, function-update and comparison operators (`in`, `head`, `==`, …)
+are resolved as [schemes](polymorphism.md) instead and are not in this table,
+so they currently report `declaration: None`.
