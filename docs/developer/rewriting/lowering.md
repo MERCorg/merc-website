@@ -1,15 +1,16 @@
 # Lowering
 
-Phase 4, the final phase of the pipeline, walks the typed representation
-produced by [sort inference](sort-inference.md) and emits aterm
-[`merc_data::DataExpression`](https://mercorg.github.io/merc/merc_data/struct.DataExpression.html)s, materializing the implicit coercions as explicit
-function applications: numeric up-casts become the Appendix-B constructor
-chains, and finite-to-unbounded container widenings become the corresponding
-set/bag constructors. Number literals are lowered to their exact Appendix-B
-constructor chains via arbitrary-precision binary encoding, and all binders
-(`lambda`, `forall`/`exists`, set/bag comprehensions, `where`) are lowered too.
-The phase assembles the full [`Mcrl2DataSpecification`](https://mercorg.github.io/merc/merc_data/struct.Mcrl2DataSpecification.html) — user sorts, aliases,
-constructors, mappings and equations, followed by the system-defined declarations and equations.
+This step walks the typed representation produced by [sort
+inference](sort-inference.md) and emits aterm
+[`merc_data::DataExpression`](https://mercorg.github.io/merc/merc_data/struct.DataExpression.html)s,
+materializing the implicit coercions as explicit function applications: numeric
+up-casts become the Appendix-B constructor chains, and finite-to-unbounded
+container widenings become the corresponding set/bag constructors. Number
+literals are lowered to their exact Appendix-B constructor chains via
+arbitrary-precision binary encoding, and all binders (`lambda`,
+`forall`/`exists`, set/bag comprehensions, `where`) are lowered too. The phase
+assembles the full
+[`Mcrl2DataSpecification`](https://mercorg.github.io/merc/merc_data/struct.Mcrl2DataSpecification.html).
 
 ## Materializing ground content at lowering time
 
