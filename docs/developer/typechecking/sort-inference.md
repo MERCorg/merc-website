@@ -95,9 +95,11 @@ function sort, that a condition is boolean — are unified eagerly at
 generation time, so a violation is reported as a direct error rather than a
 silent search failure.
 
-Equations whose binders use a sort that inference does not model yet (an
-anonymous `struct`, a bare product) are left untyped rather than rejected, so
-the rest of the specification still type checks.
+A bare product is not a valid variable sort at all — a binder declaring one is
+rejected as
+[`InferenceError::InvalidBinderSort`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.InferenceError.html#variant.InvalidBinderSort),
+rather than left untyped and silently letting an ill-typed body slip through
+unchecked.
 
 ## Unification with subtyping
 
