@@ -45,3 +45,21 @@
   background: #d4b769;
   color: #333333;
 }
+
+/*
+ * Fenced ```math``` blocks.
+ */
+.latex-math-block {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+/*
+ * `latex-math-block--<tag>` modifiers come from ```math algorithm```. These are
+ * left aligned.
+ */
+.latex-math-block--algorithm {
+  justify-content: flex-start;
+}
