@@ -18,7 +18,7 @@ different times:
   declaration lives in. Their *ground* instantiations — `in: Nat # List(Nat)
   -> Bool` and the equations that define it — are never part of `system` at
   all; they are generated on demand, only for the sorts that actually occur,
-  at [Phase 4 lowering](lowering.md), the one point where the checker has to
+  at [Phase 4 lowering](../rewriting/lowering.md), the one point where the checker has to
   hand a rewriter concrete symbols instead of a scheme.
 
 That split is why `system` is small: what used to be "every Appendix-B
@@ -98,7 +98,7 @@ not a bespoke one:
 
 Nothing here needs an unconditional, inference-free structural safety net the
 way the [generated container
-content](lowering.md#materializing-ground-content-at-lowering-time) does: `system` is a fixed,
+content](../rewriting/lowering.md#materializing-ground-content-at-lowering-time) does: `system` is a fixed,
 finite AST assembled once, and every rule above either runs the exact code a
 user declaration's own well-typedness already trusts, or is a real check
 against generated content that would otherwise sail through unnoticed
@@ -168,7 +168,7 @@ according to how many sorts they range over:
 This mirrors mCRL2's own polymorphic built-in symbol table. Concrete,
 per-sort instantiations of these operations are never resolved into
 [`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature) at all — only into the generated content
-[lowering builds](lowering.md#materializing-ground-content-at-lowering-time) on demand,
+[lowering builds](../rewriting/lowering.md#materializing-ground-content-at-lowering-time) on demand,
 which is never itself re-resolved into a signature, only lowered directly.
 
 ### Why polymorphism at all
@@ -193,7 +193,7 @@ proven exactly once against an unresolved type variable (see [Checking a
 template's equations once,
 rigidly](polymorphism.md#checking-a-templates-equations-once-rigidly)), and every concrete
 instantiation is produced afterward purely by substitution, at [lowering
-time](lowering.md#materializing-ground-content-at-lowering-time) — never
+time](../rewriting/lowering.md#materializing-ground-content-at-lowering-time) — never
 independently inferred. There is never more than one instantiation's
 declarations in play during checking, so there is nothing left to collide, and
 no per-instantiation scoping is needed to prevent it.
@@ -229,7 +229,7 @@ exists for callers that never render a span (most tests).
 Only the content that ends up in a concrete specification is registered —
 `basics`, as part of [`system`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html#structfield.system),
 and the per-concrete-sort content instantiated at [lowering
-time](lowering.md#materializing-ground-content-at-lowering-time). The bare
+time](../rewriting/lowering.md#materializing-ground-content-at-lowering-time). The bare
 parse that [`CONTAINER_TEMPLATES`](https://mercorg.github.io/merc/merc_typecheck/signature/standard_sorts/static.CONTAINER_TEMPLATES.html)
 and [`BUILTIN_SCHEME_TEMPLATE`](https://mercorg.github.io/merc/merc_typecheck/signature/standard_sorts/static.BUILTIN_SCHEME_TEMPLATE.html)
 are built from, which feeds [`Signature::schemes`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html#structfield.schemes),

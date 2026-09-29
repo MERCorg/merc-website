@@ -2,16 +2,17 @@
 
 \usepackage{tikz}
 ```
-# Sort Inference
+# Phase 5: Sort Inference
 
 Given a fully desugared equation and a [signature](signature.md) to resolve
 names against, it decides the sort of every sub-expression, choosing between
 overloaded operators and inserting the implicit coercions the surface language
-leaves out. This page covers the algorithm; see [Inference
-Internals](inference/index.md) for a function-by-function implementation
-walkthrough with pseudocode. It runs **per equation**, as a memoized query, in
-two steps — constraint generation, then a ranked backtracking search — both
-described in detail below.
+leaves out. This page covers the algorithm at the level of *what* it computes
+and *why* it is correct; see [Inference Internals](inference/index.md) for
+*how* it is implemented — a function-by-function walkthrough with
+pseudocode, which this page links to throughout rather than duplicating. It
+runs **per equation**, as a memoized query, in two steps — constraint
+generation, then a ranked backtracking search — both introduced below.
 
 ## The sort lattice
 
@@ -95,19 +96,20 @@ The constraint kinds are:
 - **[Join](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Join)** — a group of [`Sub`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Sub) constraints that all widen into the *same*
   shared sort variable (the operands of a comparison, the branches of an
   `if`, a set or bag element, the equation's two sides) is folded into one
-  least-upper-bound over the lattice. Computing the common supersort in a
-  single step avoids the order-sensitivity of solving the sub-constraints one
-  at a time, where an early finite-container branch could otherwise fix the
-  result prematurely and force the other branch to be re-explored.
+  least-upper-bound over the lattice, rather than solved one [`Sub`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Sub) at a
+  time — see
+  [`merge_shared_subs`](inference/solver.md#merge_shared_subs-from-sub-groups-to-join)
+  for why solving them independently would be order-sensitive.
 
-There is no dedicated constraint kind for arithmetic operators. `+`, `-`,
-`*`, `div`, `mod`, and the rest are ordinary overloaded `map` names —
-`pos.mcrl2`, `nat.mcrl2`, `int.mcrl2` and `real.mcrl2` each declare their own
-`+: Pos # Pos -> Pos;`/`+: Nat # Pos -> Pos;`/etc. as part of `system`'s own
-signature, the same way a user's own overloaded mapping would — so an
-application of one is typed through the ordinary **[Disjunction](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Disjunction)** constraint
-above, choosing between overloads exactly like the worked example below does
-for a user-defined `f`.
+There is no dedicated constraint kind for arithmetic operators — `+`, `-`,
+`*`, `div`, `mod` and the rest are ordinary overloaded `map` names, declared
+by `pos.mcrl2`, `nat.mcrl2`, `int.mcrl2` and `real.mcrl2` as part of
+`system`'s own signature the same way a user's own overloaded mapping would,
+so an application of one is typed through the ordinary
+**[Disjunction](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Disjunction)** constraint above — exactly like [the worked
+example in Inference
+Internals](inference/solver.md#worked-example-an-eagerly-bound-argument-pruning-a-disjunct)
+shows for a user-defined `f`.
 
 Structural facts that must hold in *every* solution — that a callee has a
 function sort, that a condition is boolean — are unified eagerly at
@@ -123,44 +125,24 @@ unchecked.
 ## Unification with subtyping
 
 Equality of sorts is decided by structural **unification** over a union-find
-table. merc uses [`ena`](https://crates.io/crates/ena) — the Rust compiler's
-extracted unification-table crate — for the union-find, wrapped in a
-[`Unifier`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/struct.Unifier.html) that adds an arena of sort nodes and the sub-sort operations.
+table, implemented by the
+[`Unifier`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/struct.Unifier.html).
+See [The Unifier](inference/unification.md) for its data model (how a
+half-known sort like `List(?t)` is represented), the unification algorithm
+itself, and the occurs check that guards every variable binding.
 
-A sort node under inference is one of: a fully resolved (interned) sort, a
-container `op(subsort)` whose element may still contain variables, a function
-sort whose parts may contain variables, or a bare **unification variable**. A
-node like `List(?t)` — a list whose element sort `?t` is still unknown — is
-how the generator represents an empty-list literal before the element sort is
-pinned down.
-
-Unification proceeds by the usual structural rules, with two additions
-specific to this checker:
-
-- **Interning makes the base case trivial.** Two fully resolved sorts unify
-  exactly when their indices are equal, so unification only ever spells out
-  structure around the variables that remain.
-- **A resolved container or function sort unifies against a spelled-out
-  one** by matching head constructors and recursing into the sub-sorts. This
-  lets a half-known `List(?t)` unify with a fully resolved `List(Nat)` by
-  binding `?t := Nat`.
-
-Binding a variable runs an **occurs check** first, which rejects the infinite
-sort a binding like `?t := List(?t)` would otherwise create.
-
-Crucially, unification itself decides only **equality**, not sub-typing. The
-sub-sort ordering is handled one level up, by the solver: unification never
-silently widens `Nat` into `Int`. Instead, the [`Unifier`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/struct.Unifier.html) exposes the strict
-super-sorts and sub-sorts of a node — `Pos` yields `[Nat, Int, Real]`, `Real`
-yields `[Int, Nat, Pos]` — in ascending distance, and only the head
-constructor is widened (`Nat` has supersorts; `List(Nat)` does not). This is
-the **materializable** relation from the lattice section above, not the full
-sub-sort ordering: it is exactly the set of coercions the solver is allowed
-to insert, so container-element covariance and function variance never show
-up as candidates here even though they hold in the lattice. The solver
-enumerates these candidates explicitly when a plain equality does not hold.
-This separation keeps unification simple and total, and confines every
-coercion decision to the ranked search where it can be measured and compared.
+Crucially, unification itself decides only **equality**, not sub-typing: it
+never silently widens `Nat` into `Int`. The sub-sort ordering is handled one
+level up, by the solver, which asks the `Unifier` for the strict
+super-sorts and sub-sorts of a node instead of relying on unification to
+widen anything — and only ever for the **materializable** relation from the
+lattice section above, not the full sub-sort ordering, so container-element
+covariance and function variance never show up as candidates even though
+they hold in the lattice. This separation keeps unification simple and
+total, and confines every coercion decision to the ranked search below,
+where it can be measured and compared; see [the subsort
+lattice](inference/unification.md#the-subsort-lattice) for exactly what the
+solver enumerates and in which order.
 
 ## Ranked backtracking search
 
@@ -182,40 +164,39 @@ The minimum measure is the most specific typing: equality beats widening,
 nearer widenings beat farther ones, and literals take their smallest
 admissible sort. Each choice point does the same thing — **try equality
 first, then the strict widenings in ascending distance** — so the first
-solution found down any branch is already the locally cheapest.
+solution found down any branch is already the locally cheapest. Backtracking
+itself reuses the `Unifier`'s snapshot/rollback — see [Snapshot and
+rollback](inference/unification.md#snapshot-and-rollback) — and [The
+solver](inference/solver.md#the-solver) walks through the full pseudocode of
+how each constraint kind is discharged.
 
-Backtracking is implemented with the union-find table's native
-**snapshot / rollback**. Before trying an alternative the solver snapshots
-the variable bindings; if the branch dead-ends or is exhausted, it rolls back
-to free exactly the variables bound since the snapshot. The sort-node arena
-is append-only and is *not* rolled back — nodes created inside an abandoned
-branch simply remain as harmless garbage — which keeps rollback to the cheap
-union-find operation.
-
-Two properties make the search both correct and tractable:
+Two properties make the search both correct and tractable, and both are
+*exact*, not heuristic, because earlier measure components dominate the
+lexicographic order — see
+[`Dominated`](inference/solver.md#branch-and-bound-dominated) for the
+pruning check itself:
 
 - **Exhaustive disjunctions detect ambiguity.** Because every overload and
   every comprehension reading is explored, two distinct solutions that tie at
   the same minimum measure are reported as a genuine *ambiguity* error rather
   than silently picking one.
 - **Branch-and-bound pruning keeps it fast.** A partial branch whose measure
-  prefix is already strictly worse, component for component, than the best
-  leaf found so far can never win — earlier components dominate the
-  lexicographic order — so it is cut immediately. Without this, an equation
-  with many independent overloaded operators would explore every combination
-  to its leaf; with it, the search stays practical. The pruning is *exact*:
-  it changes only how much of the tree is visited, never which typing wins or
-  which equations are ambiguous.
+  prefix is already strictly worse than the best leaf found so far is cut
+  immediately rather than explored to a full leaf, so an equation with many
+  independent overloaded operators need not explore every combination to its
+  leaf.
 
 When the best leaf still leaves a sort variable free — an auxiliary sort that
 no constraint ever pinned down, such as the element sort of an empty
 container that is never used — the solver substitutes a default so the
-equation is accepted rather than reported as underdetermined.
+equation is accepted rather than reported as underdetermined; see [Scoring
+and extracting](inference/solver.md#scoring-and-extracting-leaf-extract) for
+how that default is computed.
 
 The inferred sorts are recorded in side tables mapping each expression to its
 resolved sort and each name occurrence to the chosen overload, keyed by the
-same [`ExprId`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/type.ExprId.html) numbering the generator used, ready for [lowering](lowering.md)
-to re-walk.
+same [`ExprId`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/type.ExprId.html) numbering the generator used, ready for
+[lowering](../rewriting/lowering.md) to re-walk.
 
 Because this global ranked search considers the whole equation at once, it
 accepts some specifications that a purely local algorithm rejects as
@@ -225,32 +206,15 @@ clause by solving all of its bindings jointly instead of one at a time.
 
 ## A worked example
 
-Consider two overloads of the same name and a call that fits both:
+The same measure-driven ranking governs overload disjunctions, literals and
+container joins alike. [Inference Internals works through a two-overload
+disjunction end to
+end](inference/solver.md#worked-example-an-eagerly-bound-argument-pruning-a-disjunct),
+with the full pseudocode of how each candidate is tried and scored; the two
+examples below show what that same ranking looks like for the other
+constraint kinds.
 
-```mcrl2
-map  f: Nat -> Nat;
-     f: Int -> Int;
-var  n: Nat;
-eqn  f(n) = n;
-```
-
-Generation numbers the argument `n` before the callee `f`, so by the time
-`f`'s overload [`Disjunction`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Disjunction) is reached the argument sort is already known to
-be `Nat`. Two disjuncts then unify:
-
-- `f: Nat -> Nat` — the argument `Nat` matches the parameter `Nat` exactly, so
-  the argument's [`Sub`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Sub) contributes measure component `0`;
-- `f: Int -> Int` — the argument `Nat` must widen to `Int`, one step up the
-  number chain, so the same [`Sub`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Sub) contributes `1`.
-
-Both branches reach a leaf: the call type-checks either way. The measures
-differ only in that argument component — `[…, 0, …]` versus `[…, 1, …]` — and
-because `0 < 1` the exact `Nat -> Nat` overload wins. A plain "disjunction
-handed to unification" would have no reason to prefer it; the measure is
-exactly what rules out the needless up-cast.
-
-The same ranking governs literals. In `f(n) = n`'s sibling `map g: Real; eqn g
-= 1;`, the literal `1` is tried most-specific-first: `Pos` (generality `0`)
+In `map g: Real; eqn g = 1;`, the literal `1` is tried most-specific-first: `Pos` (generality `0`)
 before `Nat`, `Int`, `Real`. `Pos` is consistent — it widens to `Real` at the
 equation's join — so the leaf that types the literal itself as `Pos` and pays
 the widening at the coercion point has a smaller measure than one that starts

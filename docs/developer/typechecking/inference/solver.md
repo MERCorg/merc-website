@@ -1,3 +1,7 @@
+```math_preamble
+
+\usepackage{algpseudocode}
+```
 # Constraint Generation & the Solver
 
 `crates/typecheck/src/inference/inference.rs` is the per-equation driver
@@ -118,26 +122,67 @@ struct Solver:
     default_sort: ResolvedSortId                        -- substituted for a hole still free at a leaf
 ```
 
-```
-solve(index):
-    if dominated(): return false        -- branch-and-bound: this branch's measure prefix already loses
-    constraint = constraints[index] or None
-    match constraint:
-        None                  -> leaf(); return true         -- end of the list: score this solution
-        Disjunction(d)        -> solve_disjunction(d, index)
-        Sub(s)                -> solve_widening(s.lhs, s.rhs, |slf| slf.solve(index + 1))
-        Lit(l)                -> solve_lit(l, index)
-        Comprehension(c)      -> solve_comprehension(c, index)
-        Join(j)                -> solve_join(j, index)
+[`Solver::solve`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.Solver.html#method.solve) walks `constraints` left to right, discharging the one at
+index $i$ and recursing into $i+1$. What makes this a **ranked** backtracking
+search, rather than a plain one, is `measure`: a vector built up one
+component at a time as choices are made along the current branch — earliest
+generated constraint most significant — and compared **lexicographically**.
+Reaching the end of the list is a leaf: a complete, self-consistent typing,
+scored against the best leaf found on any branch so far.
+
+Everything below this point is really one algorithm applied five times: pick
+the next unsolved constraint, enumerate its *resolutions* (the ways it could
+be satisfied), try them against the `Unifier`, and for each that applies,
+push whatever it costs onto `measure` and recurse. The constraint kinds only
+differ in what a "resolution" is and in which of two disciplines governs how
+resolutions are tried:
+
+- **exhaustive** — try every resolution, unconditionally, even once one has
+  already succeeded. This is required wherever two *different* resolutions
+  can reach leaves with an equal measure, since that tie must be reported as
+  genuine ambiguity rather than resolved arbitrarily by whichever ran first.
+  `Disjunction` and `Comprehension` both work this way.
+- **first success** — try resolutions in ascending cost order and stop at
+  the first whose continuation succeeds. This is safe wherever the
+  resolutions are already ordered cheapest-first by construction: `Sub`
+  (plain subsorting), `Lit`, and `Join` all work this way. Because the
+  continuation recurses into the *rest* of the constraint list before
+  returning, "first success" means first success of the entire remaining
+  search, not just of this one constraint in isolation — a later constraint
+  failing under a cheap resolution here still gets to retry once this one
+  backtracks into a costlier resolution.
+
+Both disciplines share the same snapshot/try/rollback shape: snapshot the
+`Unifier`, attempt a resolution, and if it unifies, push its cost and
+recurse; either way, roll back to the snapshot before trying the next
+resolution, via [`Unifier::snapshot`/`rollback_to`](unification.md#snapshot-and-rollback).
+
+```math algorithm
+\begin{algorithmic}[1]
+\Function{Solve}{$i$}
+  \If{\Call{Dominated}{}}
+    \State \Return \textsc{false} \Comment{branch-and-bound: this branch's measure prefix already loses}
+  \EndIf
+  \If{$i = n$}
+    \State \Call{Leaf}{}
+    \State \Return \textsc{true} \Comment{end of the list: score this solution}
+  \EndIf
+  \State \Return \Call{Discharge}{$\mathit{constraints}[i], i$} \Comment{constraint-specific, see below}
+\EndFunction
+\end{algorithmic}
 ```
 
 ### Branch-and-bound: `dominated`
 
-```
-dominated():
-    match best:
-        None       -> false
-        Some(best) -> measure > best.measure[..measure.len()]   -- component-wise, so-far prefix only
+```math algorithm
+\begin{algorithmic}[1]
+\Function{Dominated}{}
+  \If{$\mathit{best} = \varnothing$}
+    \State \Return \textsc{false}
+  \EndIf
+  \State \Return $\mathit{measure} > \mathit{best.measure}[0 \,.\,.\, \lvert \mathit{measure} \rvert]$ \Comment{component-wise, so-far prefix only}
+\EndFunction
+\end{algorithmic}
 ```
 
 A `Disjunction`/`Comprehension` contributes no measure component of its own
@@ -152,126 +197,174 @@ of the tree gets visited, never which typing wins.
 
 ### Exhaustive choice points: `solve_disjunction`, `solve_comprehension`
 
-```
-solve_disjunction(d, index):
-    found = false
-    for (target, sort) in d.disjuncts:
-        snapshot = unifier.snapshot()
-        if unifier.unify(d.sort, sort):
-            choices.push((d.expr, target))
-            found |= solve(index + 1)
-            choices.pop()
-        unifier.rollback_to(snapshot)
-    return found
+```math algorithm
+\begin{algorithmic}[1]
+\Function{Discharge}{Disjunction($d$), $i$}
+  \State $\mathit{found} \gets \textsc{false}$
+  \For{$(\mathit{target}, \mathit{sort}) \in d.\mathit{disjuncts}$}
+    \State $s \gets \Call{Snapshot}{}$
+    \If{\Call{Unify}{$d.\mathit{sort}, \mathit{sort}$}}
+      \State $\mathit{choices}.\Call{Push}{(d.\mathit{expr}, \mathit{target})}$
+      \State $\mathit{found} \gets \mathit{found} \lor \Call{Solve}{i+1}$
+      \State $\mathit{choices}.\Call{Pop}{}$
+    \EndIf
+    \State \Call{RollbackTo}{$s$}
+  \EndFor
+  \State \Return $\mathit{found}$
+\EndFunction
+\end{algorithmic}
 ```
 
 `solve_comprehension` has the same shape over exactly three fixed readings —
-`(Bool, Set)`, `(Nat, Bag)`, `(Pos, Bag)` — unifying both the body sort and
-the comprehension node's own sort against each reading in turn. Both
-functions try **every** alternative unconditionally (no early return on
-success) precisely so that two alternatives reaching equal-measure leaves are
-both recorded and detected as a tie by `leaf`, rather than the first success
-silently shadowing the second.
+$(\textsc{Bool}, \textsc{Set})$, $(\textsc{Nat}, \textsc{Bag})$,
+$(\textsc{Pos}, \textsc{Bag})$ — unifying both the body sort and the
+comprehension node's own sort against each reading in turn, with no
+`choices` entry to record. Both functions try **every** alternative
+unconditionally (no early return on success): that is the exhaustive
+discipline described above, and it's precisely what lets two alternatives
+reaching equal-measure leaves both get recorded and detected as a tie by
+`leaf`, rather than the first success silently shadowing the second.
 
 ### Subsorting: `solve_sub` / `solve_widening`
 
+```math algorithm
+\begin{algorithmic}[1]
+\Function{Widen}{$\mathit{lhs}, \mathit{rhs}, i$}
+  \State $s \gets \Call{Snapshot}{}$
+  \If{\Call{Unify}{$\mathit{lhs}, \mathit{rhs}$}} \Comment{try equality first}
+    \State push $0$ onto \textit{measure}
+    \State $\mathit{found} \gets \Call{Solve}{i+1}$
+    \State pop \textit{measure}
+  \EndIf
+  \State \Call{RollbackTo}{$s$}
+  \If{$\mathit{found}$}
+    \State \Return \textsc{true}
+  \EndIf
+  \State $\mathit{pairs} \gets \Call{StrictSuperSorts}{\mathit{lhs}} \times \{\mathit{rhs}\}$, \textbf{or else} $\{\mathit{lhs}\} \times \Call{StrictSubSorts}{\mathit{rhs}}$
+  \If{neither side has an enumerable shape}
+    \State \Return \textsc{false}
+  \EndIf
+  \For{$(\mathit{distance}, (\mathit{lhs}', \mathit{rhs}')) \in \mathit{pairs}$} \Comment{nearest widening first}
+    \State $s \gets \Call{Snapshot}{}$
+    \If{\Call{Unify}{$\mathit{lhs}', \mathit{rhs}'$}}
+      \State push $1 + \mathit{distance}$ onto \textit{measure}
+      \State $\mathit{found} \gets \Call{Solve}{i+1}$
+      \State pop \textit{measure}
+    \EndIf
+    \State \Call{RollbackTo}{$s$}
+    \If{$\mathit{found}$}
+      \State \Return \textsc{true}
+    \EndIf
+  \EndFor
+  \State \Return \textsc{false}
+\EndFunction
+\end{algorithmic}
 ```
-solve_widening(lhs, rhs, continue_with):
-    snapshot = unifier.snapshot()
-    if unifier.unify(lhs, rhs):                 -- try equality first
-        measure.push(0)
-        found = continue_with(self)
-        measure.pop()
-    unifier.rollback_to(snapshot)
-    if found: return true
 
-    pairs = unifier.strict_super_sorts(lhs).map(wider => (wider, rhs))
-         or unifier.strict_sub_sorts(rhs).map(narrower => (lhs, narrower))
-         or return false                         -- neither side has an enumerable shape
-
-    for (distance, (lhs, rhs)) in pairs.enumerate():   -- nearest widening first
-        snapshot = unifier.snapshot()
-        if unifier.unify(lhs, rhs):
-            measure.push(1 + distance)
-            found = continue_with(self)
-            measure.pop()
-        unifier.rollback_to(snapshot)
-        if found: return true
-    return false
-```
-
-`solve_widening` is shared by `solve_sub` (a plain `Sub` constraint) and, as
-a fallback, by the `Join` path below. It takes the **first** success only —
-equality if it works, otherwise the nearest strict widening that works — and
-stops there, never comparing alternative widening distances against each
-other directly. That is enough to guarantee the minimal upcast wins:
-distances are tried in ascending order, and `continue_with` recurses into the
-*rest* of the constraint list before this function returns, so a later
-constraint failing under a near widening still gets to retry under a farther
-one — the "first success" is first-success-of-the-whole-remaining-search, not
-just of this one constraint in isolation.
+`Widen` is shared by `solve_sub` (a plain `Sub` constraint, calling
+`Widen(lhs, rhs, i)` directly as its `Discharge`) and, as a fallback, by the
+`Join` path below. It is the concrete instance of the **first success**
+discipline: equality if it works, otherwise the nearest strict widening that
+works, stopping there — never comparing alternative widening distances
+against each other directly. That is enough to guarantee the minimal upcast
+wins, for the reason given above: distances are tried in ascending order,
+and `Solve` recurses into the *rest* of the constraint list before `Widen`
+returns, so a later constraint failing under a near widening still gets to
+retry under a farther one — "first success" here means first success of the
+whole remaining search, not just of this one constraint in isolation.
 
 ### Literals: `solve_lit`
 
-A literal's sort is either already resolved (check its `generality` admits
-the literal's kind, e.g. reject `Pos` for a literal that must be `Natural`
-like `0`, push that generality as the measure) or still a hole, in which case
-the solver tries each admissible number sort **most specific first** —
-`[Pos, Nat, Int, Real]` for a `Positive` literal, `[Nat, Int, Real]` for a
-`Natural` one — unifying, pushing that sort's generality as the measure
-component, recursing, and rolling back on failure, same snapshot/try/rollback
-shape as everything else.
+A literal's sort is either already resolved (check its generality admits
+the literal's kind — reject `Pos` for a literal that must be `Natural` like
+`0` — and push that generality as the measure, with no choice involved), or
+still a hole, in which case `Discharge` is again a **first success** search:
+try each admissible number sort most-specific-first —
+$[\textsc{Pos}, \textsc{Nat}, \textsc{Int}, \textsc{Real}]$ for a `Positive`
+literal, $[\textsc{Nat}, \textsc{Int}, \textsc{Real}]$ for a `Natural` one —
+unifying, pushing that sort's generality as the measure component,
+recursing, and rolling back on failure. Same snapshot/try/rollback shape as
+`Widen`, just over a fixed list instead of the lattice's neighbor relation.
 
 ### The lattice join: `solve_join` / `solve_join_seq`
 
+```math algorithm
+\begin{algorithmic}[1]
+\Function{Discharge}{Join($j$), $i$}
+  \State $\mathit{resolved} \gets [\Call{Resolve}{s} : s \in j.\mathit{sources}]$
+  \If{some source in $\mathit{resolved}$ is unresolved}
+    \State \Return \Call{JoinSeq}{$j.\mathit{sources}, j.\mathit{target}, 0, i$} \Comment{fallback}
+  \EndIf
+  \State $\mathit{lub} \gets \mathit{resolved}[0]$
+  \For{$\mathit{next} \in \mathit{resolved}[1 \,.\,.\,]$}
+    \If{$\mathit{lub} \sqcup \mathit{next}$ is undefined} \Comment{not joinable by the simple lattice}
+      \State \Return \Call{JoinSeq}{$j.\mathit{sources}, j.\mathit{target}, 0, i$}
+    \EndIf
+    \State $\mathit{lub} \gets \mathit{lub} \sqcup \mathit{next}$
+  \EndFor
+  \If{some source in $\mathit{resolved}$ is not materializable into $\mathit{lub}$}
+    \State \Return \Call{JoinSeq}{$j.\mathit{sources}, j.\mathit{target}, 0, i$} \Comment{lowering can't build this coercion yet}
+  \EndIf
+  \If{$\lnot \Call{Unify}{j.\mathit{target}, \mathit{lub}}$}
+    \State \Return \textsc{false}
+  \EndIf
+  \For{$\mathit{source} \in \mathit{resolved}$}
+    \State push $\Call{WideningDistance}{\mathit{source}, \mathit{lub}}$ onto \textit{measure} \Comment{one component per source, matching \Call{Widen}{}}
+  \EndFor
+  \State $\mathit{found} \gets \Call{Solve}{i+1}$
+  \State pop all pushed components
+  \State \Return $\mathit{found}$
+\EndFunction
+\end{algorithmic}
 ```
-solve_join(j, index):
-    resolved = [unifier.resolve(source) for source in j.sources]
-    if any source unresolved: return solve_join_seq(j.sources, j.target, 0, index)   -- fallback
 
-    lub = resolved[0]
-    for next in resolved[1..]:
-        lub = sorts.join(lub, next) or return solve_join_seq(...)  -- not joinable by the simple lattice
-
-    if not every resolved source is materializable into lub:
-        return solve_join_seq(...)                                 -- join reaches a sort lowering can't build yet
-
-    if not unifier.unify(j.target, resolved_node(lub)): return false
-    for source in resolved:
-        measure.push(widening_distance(source, lub).head)          -- one component per source, matching solve_sub
-    found = solve(index + 1)
-    pop all pushed components
-    return found
-
-solve_join_seq(sources, target, i, index):     -- the pre-merge two-Sub behavior, as a fallback
-    if i == sources.len(): return solve(index + 1)
-    return solve_widening(sources[i], target, |slf| slf.solve_join_seq(sources, target, i + 1, index))
+```math algorithm
+\begin{algorithmic}[1]
+\Function{JoinSeq}{$\mathit{sources}, \mathit{target}, k, i$} \Comment{the pre-merge, per-source behavior, as a fallback}
+  \If{$k = \lvert \mathit{sources} \rvert$}
+    \State \Return \Call{Solve}{i+1}
+  \EndIf
+  \State \Return \Call{Widen}{$\mathit{sources}[k], \mathit{target}, i'$} \Comment{$i'$ continues as \Call{JoinSeq}{$\mathit{sources}, \mathit{target}, k+1, i$}}
+\EndFunction
+\end{algorithmic}
 ```
 
-The fast path only fires when every source is already fully resolved *and*
-pairwise joinable *and* the join's result is one lowering can actually
-materialize (container-element covariance and function contravariance are
-relations the lattice can compute but Phase 4 lowering cannot yet build
-coercions for); otherwise it defers to `solve_join_seq`, which reproduces
-exactly the order-sensitive per-source widening the pre-`merge_shared_subs`
-encoding used — so the rare underdetermined case (e.g. joining two still-open
-empty containers) behaves identically to before that optimization existed.
+The fast path is deterministic — it makes no choice at all, just computes a
+lattice join and unifies once — and only fires when every source is already
+fully resolved *and* pairwise joinable *and* the join's result is one
+lowering can actually materialize (container-element covariance and
+function contravariance are relations the lattice can compute but Phase 4
+lowering cannot yet build coercions for). Otherwise it defers to
+`solve_join_seq`, which is nothing but `Widen` applied once per source in
+turn — the same **first success** discipline as a plain `Sub`, composed
+sequentially — reproducing exactly the order-sensitive per-source widening
+the pre-`merge_shared_subs` encoding used, so the rare underdetermined case
+(e.g. joining two still-open empty containers) behaves identically to
+before that optimization existed.
 
 ### Scoring and extracting: `leaf` / `extract`
 
-```
-leaf():
-    match (measure, best):
-        no best yet, or measure < best.measure -> best = extract()          -- strictly better
-        measure == best.measure                 -> best.duplicate = true    -- tie: ambiguous
-        measure > best.measure                  -> discard                  -- (unreachable: dominated() would have pruned)
+```math algorithm
+\begin{algorithmic}[1]
+\Function{Leaf}{}
+  \If{$\mathit{best} = \varnothing$ \textbf{or} $\mathit{measure} < \mathit{best.measure}$}
+    \State $\mathit{best} \gets \Call{Extract}{}$ \Comment{strictly better}
+  \ElsIf{$\mathit{measure} = \mathit{best.measure}$}
+    \State $\mathit{best.duplicate} \gets \textsc{true}$ \Comment{tie: ambiguous}
+  \EndIf
+  \Comment{$\mathit{measure} > \mathit{best.measure}$ cannot occur here: \Call{Dominated}{} would already have pruned it}
+\EndFunction
+\end{algorithmic}
 ```
 
-```
-extract():                                      -- reads bindings before backtracking destroys them
-    sorts = [unifier.resolve_or_default(node, default_sort) for node in expr_sorts]
-    names = base_names ++ choices                -- every Disjunction's committed NameTarget, overlaid
-    return Candidate { measure, duplicate: false, typing: Some((sorts, names)) }
+```math algorithm
+\begin{algorithmic}[1]
+\Function{Extract}{} \Comment{reads bindings before backtracking destroys them}
+  \State $\mathit{sorts} \gets [\Call{ResolveOrDefault}{\mathit{node}, \mathit{default\_sort}} : \mathit{node} \in \mathit{expr\_sorts}]$
+  \State $\mathit{names} \gets \mathit{base\_names} \cup \mathit{choices}$ \Comment{every Disjunction's committed NameTarget, overlaid}
+  \State \Return $\mathit{Candidate}\{\mathit{measure}, \mathit{duplicate} \gets \textsc{false}, \mathit{typing} \gets (\mathit{sorts}, \mathit{names})\}$
+\EndFunction
+\end{algorithmic}
 ```
 
 `extract` runs **before** the caller unwinds back through the `snapshot`s
@@ -305,14 +398,14 @@ eqn  f(n) = n;
 Generation visits the argument `n` before the callee `f` (argument-before-
 function ordering), binding `n`'s node directly to `Nat` — it's a declared
 variable, not a disjunction. `f`'s occurrence then becomes a two-way
-[`Disjunction`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Disjunction). Solving it:
+[`Disjunction`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.Constraint.html#variant.Disjunction), solved by the exhaustive `Discharge` above:
 
 - **`f: Nat -> Nat`** — unifying the parameter against the argument node
   (already `Nat`) succeeds by equality; the `Sub` constraint linking them
   contributes measure `0`.
 - **`f: Int -> Int`** — the argument is `Nat`, the parameter wants `Int`;
-  equality fails, `solve_widening` falls through to `strict_super_sorts(Nat)`
-  = `[Int, Real]`, and the nearest, `Int`, succeeds at distance `1`.
+  equality fails, `Widen` falls through to `StrictSuperSorts(Nat)` =
+  `[Int, Real]`, and the nearest, `Int`, succeeds at distance `1`.
 
 Both branches reach a leaf — the call type-checks either way — but their
 measures differ at that one component: `[…, 0, …]` beats `[…, 1, …]`, so
@@ -320,4 +413,5 @@ measures differ at that one component: `[…, 0, …]` beats `[…, 1, …]`, so
 raised. This is the concrete mechanism behind the informal rule "the exact
 overload wins over one that needs an up-cast": nothing in `unify` itself
 prefers one branch over the other, it's `leaf`'s lexicographic comparison of
-`Solver::measure` that does.
+`measure` that does.
+</content>

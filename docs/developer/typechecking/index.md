@@ -50,8 +50,6 @@ specification kind built on top of them:
      - **[Inference Internals](inference/index.md)** — the implementation
        behind that page, function by function: the `Unifier`'s arena and
        union-find split, and the constraint generator/solver's pseudocode.
- - **[Phase 6: Lowering](lowering.md)** — Phase 4: emitting aterms, binary-aterm
-   compatibility, and the known divergences from the mCRL2 toolset.
 
 **Specification kinds built on the pipeline above:**
 

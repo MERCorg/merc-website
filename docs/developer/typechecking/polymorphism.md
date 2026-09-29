@@ -111,11 +111,11 @@ never needs a scheme's bound variables as precomputed data; it discovers them
 structurally by walking [`sort`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html#structfield.sort) and collecting every [`TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar) node it finds.
 Specialization uses [`TemplateCheck.type_vars`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html#structfield.type_vars), together with the concrete sorts
 each
-[`TemplateInstantiation`](lowering.md#materializing-ground-content-at-lowering-time)
+[`TemplateInstantiation`](../rewriting/lowering.md#materializing-ground-content-at-lowering-time)
 records, to turn that one proven typing into the typing of a concrete
 instantiation by substitution instead of re-inference; see [Materializing
 ground content at lowering
-time](lowering.md#materializing-ground-content-at-lowering-time) for where
+time](../rewriting/lowering.md#materializing-ground-content-at-lowering-time) for where
 that half runs.
 
 ## Instantiating a scheme
@@ -129,13 +129,6 @@ same variable — the mechanism that makes `S` mean "the same `S`" on both
 sides of `in: S # List(S) -> Bool`. Every occurrence gets a fresh [`HashMap`](https://doc.rust-lang.org/std/collections/struct.HashMap.html),
 so two occurrences of `in` in the same equation never share a variable with
 each other.
-
-This replaces an older design where a template's sort variables were bare,
-unresolved [`Reference`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Reference) nodes matched by name during instantiation — a
-syntax-tree walk with no counterpart in the interned lattice. Because
-[`ResolvedTypeVar`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.ResolvedTypeVar)/[`ResolvedSort::TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar) are resolved once, up front, alongside
-every other sort, instantiation has no name-keyed path left to fall back to: a
-scheme's [`sort`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html#structfield.sort) can only ever contain [`TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar), never a bare name.
 
 ## Real declaration spans for system-defined symbols
 
