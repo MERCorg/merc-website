@@ -47,9 +47,6 @@ specification kind built on top of them:
  - **[Phase 5: Sort Inference](sort-inference.md)** — The sort lattice,
    constraint generation, unification with subtyping, and the ranked
    backtracking search — the heart of the crate.
-     - **[Inference Internals](inference/index.md)** — the implementation
-       behind that page, function by function: the `Unifier`'s arena and
-       union-find split, and the constraint generator/solver's pseudocode.
 
 **Specification kinds built on the pipeline above:**
 

@@ -8,7 +8,7 @@ Given a fully desugared equation and a [signature](signature.md) to resolve
 names against, it decides the sort of every sub-expression, choosing between
 overloaded operators and inserting the implicit coercions the surface language
 leaves out. This page covers the algorithm at the level of *what* it computes
-and *why* it is correct; see [Inference Internals](inference/index.md) for
+and *why* it is correct; see [Solver](inference/solver.md) for
 *how* it is implemented — a function-by-function walkthrough with
 pseudocode, which this page links to throughout rather than duplicating. It
 runs **per equation**, as a memoized query, in two steps — constraint
