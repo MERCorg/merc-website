@@ -1,6 +1,12 @@
 ```math_preamble
 \usepackage[paperwidth=60cm,paperheight=60cm,margin=5mm]{geometry}
 \usepackage{algpseudocode}
+% Default \Comment right-justifies with \hfill, which — combined with a wide
+% page to fit long comments — leaves a huge blank gap between code and
+% comment, and dvisvgm's tightpage crop then bakes that gap into the SVG:
+% CSS stretches the whole (mostly blank) image to the page width, shrinking
+% the actual pseudocode. Keep comments inline instead. See README.md.
+\algrenewcommand{\algorithmiccomment}[1]{$\triangleright$ #1}
 \newcommand{\G}{\mathcal G}
 \newcommand{\Attr}{\mathrm{Attr}}
 \newcommand{\SAttr}{\mathrm{SAttr}}
@@ -26,7 +32,7 @@ each recursive call, the attractor of the highest priority present, recurses on 
 then decides — depending on whether the opponent won anything at all in the remainder — whether one
 more attractor and one more recursive call are needed to correctly attribute that remainder:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{Zielonka}{$\G$}
   \If{$V = \emptyset$}

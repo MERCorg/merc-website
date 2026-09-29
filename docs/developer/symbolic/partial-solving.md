@@ -70,7 +70,7 @@ reaching outside it is not (Lemma 2/Corollary 1).
 
 The implementation ports this with one addition beyond the literal formula:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{SafeVertices}{$\alpha, v, \mathit{incomplete}$}
   \State $\mathit{opponent} \gets \alpha.\Call{Opponent}{}$
@@ -128,7 +128,7 @@ $\spre_\alpha/\SAttr_\alpha$ directly, with `incomplete` threaded through as an
 ordinary parameter — the one line in each that differs from plain
 $\cpre_\alpha/\Attr_\alpha$ is marked:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{ControlPredecessors}{$\alpha, u, \mathit{search\_space}, \mathit{outside}, V_{\mathrm{player}}, \mathit{incomplete}$}
   \State $\mathit{candidates} \gets \Call{Predecessors}{\mathit{search\_space}, u}$
@@ -144,7 +144,7 @@ $\cpre_\alpha/\Attr_\alpha$ is marked:
 \end{algorithmic}
 ```
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{Attractor}{$\alpha, u, v, V_{\mathrm{player}}, \mathit{incomplete}, \mathit{target}$}
   \State $Z \gets u; \quad \mathit{todo} \gets u; \quad Z_{\mathrm{outside}} \gets v \setminus Z$
@@ -197,7 +197,7 @@ which point exploration itself can stop, whatever fraction of the game remains
 unexplored. Internally it runs a plain Zielonka restricted to each player's own
 safe subgame in turn:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{PartialSolve}{$\mathit{epg}, \mathit{incomplete}, \mathit{partial\_solution}$}
   \State $(\mathit{winning}, \mathit{strategy}) \gets \mathit{partial\_solution}$
@@ -242,7 +242,7 @@ $$
 
 In pseudocode:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{DetectSolitaireCycles}{$\mathit{epg}, \mathit{incomplete}$}
   \State $\mathit{total} \gets \Call{ComputeTotalGraph}{\ldots}$ \Comment{+ early exit}
@@ -267,7 +267,7 @@ below), which records $U$ as won — with an overapproximate strategy, later cut
 down to real edges when the strategy is applied — and closes it off with a safe
 attractor:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{AcceptCycle}{$\alpha, U, \mathit{incomplete}$}
   \State $\mathit{attracted}, \_ \gets \Call{Attractor}{\alpha, U, \mathit{total}, V_{\mathrm{player}}, \mathit{incomplete}}$
@@ -304,7 +304,7 @@ The solver implements the right-hand side directly — the form that avoids the
 subgame — through `ControlPredecessorsWithin`, which is `ControlPredecessors`
 with `outside = v \ u`:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{DetectForcedCycles}{$\mathit{epg}, \mathit{incomplete}$}
   \State $\mathit{total} \gets \Call{ComputeTotalGraph}{\ldots}$ \Comment{+ early exit}
@@ -360,7 +360,7 @@ The solver implements $F_s^\alpha$: $\Mcpre_\alpha/\MAttr_\alpha$ become
 `MonotoneAttractor`, which folds `incomplete` into its inner
 `ControlPredecessors` call exactly as `Attractor` does above:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{MonotoneAttractor}{$u, \alpha, c, v, V_{\mathrm{player}}, \mathit{incomplete}$}
   \State $V_c \gets \Call{VerticesWithPriorityAtMost}{v, c}$
@@ -383,7 +383,7 @@ paper's descending, least-to-most-significant $\mathrm{solB}^-$ loop — running
 for each the $X$/$Y$/$Z$ fixed point that finds a fatal attractor at that
 priority or concludes there isn't one:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{DetectFatalAttractors}{$\mathit{epg}, \mathit{incomplete}, w_0, w_1$}
   \State $\mathit{winning} \gets [w_0, w_1]$

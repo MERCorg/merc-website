@@ -4,7 +4,9 @@
 \usepackage{algpseudocode}
 % Default \Comment right-justifies with \hfill, which — combined with a wide
 % page to fit long comments — leaves a huge blank gap between code and
-% comment. Keep comments inline instead; see canonicalize-orbit.md.
+% comment, and dvisvgm's tightpage crop then bakes that gap into the SVG:
+% CSS stretches the whole (mostly blank) image to the page width, shrinking
+% the actual pseudocode. Keep comments inline instead. See README.md.
 \algrenewcommand{\algorithmiccomment}[1]{$\triangleright$ #1}
 ```
 # Symmetry Quotienting
@@ -39,7 +41,7 @@ not the group actually moves it; a position the group fixes just gets a
 singleton transversal $U_i = \{\mathrm{id}\}$. Cleaned up from the report's
 draft pseudocode into pseudocode that matches what it evidently intends:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{Canonicalize}{}
   \State $\mathit{current} \gets \{\mathrm{id}\}$
@@ -94,7 +96,7 @@ At a real base point it does what the report's loop does. Everywhere else, it
 reconstructs that loop's filtering effect by hand, without the singleton
 transversal ever being materialized:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{Canonicalize}{$\mathit{chain}$}
   \State $\mathit{current} \gets \{\mathrm{id}\}$
