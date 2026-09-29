@@ -2,6 +2,12 @@
 
 \usepackage[paperwidth=40cm,paperheight=25cm,margin=5mm]{geometry}
 \usepackage{algpseudocode}
+% Default \Comment right-justifies with \hfill, which — combined with a wide
+% page to fit long comments — leaves a huge blank gap between code and
+% comment, and dvisvgm's tightpage crop then bakes that gap into the SVG:
+% CSS stretches the whole (mostly blank) image to the page width, shrinking
+% the actual pseudocode. Keep comments inline instead. See README.md.
+\algrenewcommand{\algorithmiccomment}[1]{$\triangleright$ #1}
 \newcommand{\Sat}{\mathrm{Sat}}
 \newcommand{\Top}{\mathrm{top}}
 \newcommand{\Bot}{\mathrm{bot}}

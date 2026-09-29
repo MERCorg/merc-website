@@ -4,6 +4,12 @@
 \usetikzlibrary{babel}
 \usepackage[paperwidth=60cm,paperheight=60cm,margin=5mm]{geometry}
 \usepackage{algpseudocode}
+% Default \Comment right-justifies with \hfill, which — combined with a wide
+% page to fit long comments — leaves a huge blank gap between code and
+% comment, and dvisvgm's tightpage crop then bakes that gap into the SVG:
+% CSS stretches the whole (mostly blank) image to the page width, shrinking
+% the actual pseudocode. Keep comments inline instead. See README.md.
+\algrenewcommand{\algorithmiccomment}[1]{$\triangleright$ #1}
 \newcommand{\G}{\mathcal G}
 \newcommand{\safe}[1]{\mathrm{safe}_{#1}(\G)}
 \newcommand{\cpre}{\mathrm{cpre}}
@@ -70,7 +76,8 @@ The implementation ports this with one addition beyond the literal formula:
   \State $\mathit{opponent} \gets \alpha.\Call{Opponent}{}$
   \State $V_{\mathrm{player}} \gets \Call{Players}{v}$ \Comment{$\{v \cap \text{Even-owned},\ v \cap \text{Odd-owned}\}$}
   \State $\mathit{seed} \gets (\mathit{incomplete} \cap V_{\mathrm{player}}[\mathit{opponent}]) \cup \Call{Sinks}{\mathit{incomplete}, v}$
-  \State $\mathit{attracted}, \_ \gets \Call{Attractor}{\mathit{opponent}, \mathit{seed}, v, V_{\mathrm{player}}, \emptyset}$ \Comment{plain $\Attr$, Definition 4 has no incomplete set of its own here}
+  \State $\mathit{attracted}, \_ \gets \Call{Attractor}{\mathit{opponent}, \mathit{seed}, v, V_{\mathrm{player}}, \emptyset}$
+  \Statex \Comment{plain $\Attr$, Definition 4 has no incomplete set of its own here}
   \State \Return $v \setminus \mathit{attracted}$
 \EndFunction
 \end{algorithmic}
@@ -126,7 +133,8 @@ $\cpre_\alpha/\Attr_\alpha$ is marked:
 \Function{ControlPredecessors}{$\alpha, u, \mathit{search\_space}, \mathit{outside}, V_{\mathrm{player}}, \mathit{incomplete}$}
   \State $\mathit{candidates} \gets \Call{Predecessors}{\mathit{search\_space}, u}$
   \State $\mathit{pulled\_in} \gets \mathit{candidates} \cap V_{\mathrm{player}}[\alpha]$
-  \State $\mathit{forced} \gets (\mathit{candidates} \cap V_{\mathrm{player}}[\bar\alpha]) \setminus \mathit{incomplete}$ \Comment{safety: an unexplored $\bar\alpha$-owned vertex might still gain an escaping edge, so don't count it as forced yet}
+  \State $\mathit{forced} \gets (\mathit{candidates} \cap V_{\mathrm{player}}[\bar\alpha]) \setminus \mathit{incomplete}$
+  \Statex \Comment{safety: an unexplored $\bar\alpha$-owned vertex might still gain an escaping edge, so don't count it as forced yet}
   \ForAll{transition relations $r$}
     \State $\mathit{still\_leaving} \gets \Call{PredecessorsGroup}{r, \mathit{forced}, \mathit{outside}}$
     \State $\mathit{forced} \gets \mathit{forced} \setminus \mathit{still\_leaving}$
@@ -262,7 +270,8 @@ attractor:
 ```math
 \begin{algorithmic}[1]
 \Function{AcceptCycle}{$\alpha, U, \mathit{incomplete}$}
-  \State $\mathit{attracted}, \_ \gets \Call{Attractor}{\alpha, U, \mathit{total}, V_{\mathrm{player}}, \mathit{incomplete}}$ \Comment{safety: $\SAttr_\alpha$, by Lemma 4, closes $U$ into a won region without ever computing $\safe\alpha$}
+  \State $\mathit{attracted}, \_ \gets \Call{Attractor}{\alpha, U, \mathit{total}, V_{\mathrm{player}}, \mathit{incomplete}}$
+  \Statex \Comment{safety: $\SAttr_\alpha$, by Lemma 4, closes $U$ into a won region without ever computing $\safe\alpha$}
   \State $\mathit{winning}[\alpha] \gets \mathit{winning}[\alpha] \cup \mathit{attracted}$
 \EndFunction
 \end{algorithmic}
@@ -304,7 +313,8 @@ with `outside = v \ u`:
   \For{$\alpha \in \{\mathrm{Even}, \mathrm{Odd}\}$}
     \State $U \gets \mathit{Parity}[\alpha]$
     \Repeat
-      \State $U \gets U \cap \Call{ControlPredecessorsWithin}{\alpha, U, \mathit{total}, V_{\mathrm{player}}, \mathit{incomplete}}$ \Comment{safety folded in here (see \textsc{ControlPredecessors} above) --- computes $C_{s\text{-}for}^\alpha$}
+      \State $U \gets U \cap \Call{ControlPredecessorsWithin}{\alpha, U, \mathit{total}, V_{\mathrm{player}}, \mathit{incomplete}}$
+      \Statex \Comment{safety folded in here (see \textsc{ControlPredecessors} above) --- computes $C_{s\text{-}for}^\alpha$}
     \Until{fixed point}
     \State \Call{AcceptCycle}{$\alpha, U, \mathit{incomplete}$} \Comment{same helper as \textsc{DetectSolitaireCycles}}
   \EndFor
