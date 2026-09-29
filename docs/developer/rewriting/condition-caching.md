@@ -7,7 +7,7 @@ end up normalising the *same* subterm more than once: two sibling rules whose
 conditions disagree on the same computed value:
 
 ```
-  odd(s(N)) -> true if even(N) = true
+  odd(s(N)) -> true  if even(N) = true
   odd(s(N)) -> false if even(N) = false
 ```
 
@@ -57,7 +57,7 @@ and `eval17` — which recursively evaluates an arithmetic expression tree —
 calls into all three, plus itself, at every node:
 
 ```
-eval17(Exs(n))     -> succ17(eval17(n))
+eval17(Exs(n))      -> succ17(eval17(n))
 eval17(Explus(n,m)) -> plus17(eval17(n), eval17(m))
 eval17(Exmult(n,m)) -> mult17(eval17(n), eval17(m))
 eval17(Exexp(n,m))  -> exp17(eval17(n), eval17(m))
@@ -95,7 +95,7 @@ reuses the first's already-normalised `c`, the same way it reuses `succ17`'s
 already-checked condition above, regardless of the rules being otherwise
 unrelated.
 
-## A real limitation: nested occurrences within one condition side
+## Limitation
 
 The cache is keyed on the result of evaluating one condition side's pattern
 *as a whole* — it is only ever consulted once per side, not once per
@@ -110,63 +110,3 @@ Measured directly with a synthetic `slow(x)` spec of exactly this shape
 `slow(x) = true` takes 403 steps (`slow(x)` computed twice); both
 conditions written as `slow(x)` in full (no nesting) takes 201 (computed
 once, one cache hit).
-
-The *removed* static per-rule cache did not have this gap, but did slow down
-overall rewriting because it had to maintain and check a more complex cache
-structure for every subterm of every condition side.
-
-## Caching every subterm instead
-
-The obvious way to close both gaps at once is to stop treating condition
-sides as special: cache a normal form for *every* subterm the rewriter
-settles, wherever in the stack machine that happens. Evaluating a condition
-side is just another rewrite job to the stack machine, so such a cache
-reaches condition sides, subterms nested inside them, and plain rule
-arguments — the `f(c)`/`g(c)` case above — with one mechanism.
-
-That reach is not free. The condition cache does one lookup per condition
-side; a general term cache does a lookup, plus records a pending entry to
-fill in on a miss, once per application subterm. `RewritingStatistics::
-symbol_comparisons` counts exactly the automaton-traversal work a hit skips,
-so it answers directly what a hit is worth:
-
-| Spec | symbol comparisons avoided | term cache hits | avoided per hit |
-|---|---:|---:|---:|
-| fibonacci05 | 1,084 | 4 | **271.0** |
-| bubblesort100 | 515,011 | 25,248 | **20.4** |
-| oddeven | 575 | 140 | **4.1** |
-| tak18 | 2,462 | 222,732 | 0.011 |
-| evalexpr | 615 | 6,229,866 | **0.0001** |
-
-Where the cached subterm is large and structurally repeated — a memoised
-recursive call's result, a long already-sorted list suffix re-examined on
-every pass — a hit skips tens to hundreds of symbol comparisons. Where it is
-a small, already-cheap-to-reject leaf, as in the deep-arithmetic specs, a hit
-avoids essentially nothing while still paying the fixed per-candidate cost.
-
-Over the 41-spec REC suite that split shows up as a net loss, because the
-suite's wall-clock mass sits in exactly the second shape:
-
-| Spec | steps (default → term cache) | ms (default → term cache) | ratio |
-|---|---|---|---:|
-| fibonacci05 | 480 → 160 | 0.086 → 0.034 | **0.40** |
-| bubblesort100 | 177,074 → 177,073 | 78.3 → 44.6 | **0.57** |
-| tautologyhard | 1,035 → 370 | 0.127 → 0.082 | **0.64** |
-| evaltree | 15,208,761 → 15,208,761 | 7,230 → 8,450 | **1.17** |
-| evalexpr | 8,265,493 → 8,265,493 | 3,670 → 4,480 | **1.22** |
-| tak18 | 112,303 → 112,303 | 37.0 → 56.1 | **1.52** |
-| **all 41, summed** | — | 22,700 → 27,000 | **1.19** |
-| 37 of 41 (excl. the 4 slowest) | — | 581 → 583 | ~1.00 |
-
-Every result matched its snapshot and no step count ever went up, so the
-mechanism is correct and does buy real sharing — `closure` drops 11.5% in
-steps yet is still marginally slower, which is the per-candidate overhead
-showing through even where the cache is genuinely earning something.
-
-So the generalisation stays out of both engines: it has no way to tell the
-two shapes apart before paying to check. A cheap proxy for "worth watching"
-— skipping a subterm whose arguments are already machine numbers or bare
-symbols — is the concrete next step if this is revisited. The experiment's
-code is `crates/sabre/src/matching/term_cache.rs` in the `merc` repository;
-it deliberately knows nothing of the stack machine driving it, dealing only
-in configuration-stack depths, subterms and result slot indices.

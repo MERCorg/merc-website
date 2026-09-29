@@ -1,7 +1,7 @@
 # Lowering
 
 This step walks the typed representation produced by [sort
-inference](sort-inference.md) and emits aterm
+inference](../typechecking/sort-inference.md) and emits aterm
 [`merc_data::DataExpression`](https://mercorg.github.io/merc/merc_data/struct.DataExpression.html)s,
 materializing the implicit coercions as explicit function applications: numeric
 up-casts become the Appendix-B constructor chains, and finite-to-unbounded
@@ -17,7 +17,7 @@ assembles the full
 For a polymorphic container/function-update operation, lowering recovers the
 concrete operation from the operator name together with the sort that
 inference assigned the occurrence — see [the polymorphic
-signature](system-specification.md#the-polymorphic-signature) for why
+signature](../typechecking/system-specification.md#the-polymorphic-signature) for why
 inference itself never resolves these to a concrete overload. Container,
 function-update and comparison operations stay schemes for as long as type
 checking runs, and a rewriter has no representation for a scheme: lowering
@@ -35,19 +35,22 @@ It builds them fresh, once, for that call:
   not a fresh parse and not a fresh resolution pass: the substituted sort node
   is already a resolved [`Resolved`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Resolved)`(name, `[`SortId`](https://mercorg.github.io/merc/merc_syntax/type.SortId.html)`)` node, copied in from the user's
   own already-resolved sort tree.
-- **A second, inference-driven pass** catches what that syntactic scan cannot
-  see: the element sort of a `List`/`Set`/`Bag` enumeration literal
-  (`[1, 2, 3]`, `{1, 2}`) or a bare numeral is never written down anywhere in
-  the source — it is purely a product of Phase-3 inference — so this replays
-  the same worklist against every sort that shows up in an already-typed
-  equation's own inferred sorts, diffed against what the syntactic pass
-  already covered.
+- **A second pass over already-typed equations** catches what the syntactic
+  scan cannot see. The element sort of a `List`/`Set`/`Bag` enumeration
+  literal (`[1, 2, 3]`, `{1, 2}`) or a bare numeral is never written down
+  anywhere in the source, so there is no sort-expression node for the
+  syntactic pass to find — and that pass runs before type checking anyway,
+  so the inferred sort doesn't exist yet to be scanned. This pass doesn't
+  redo any inference to recover it: type checking already recorded each
+  node's resolved sort on the typed equation, so this pass just reads those
+  recorded sorts and replays the same worklist against them, diffed against
+  what the syntactic pass already covered.
 - **Each generated equation is then specialized from its template's
   already-proven typing by substitution — one [`TemplateInstantiation`](https://mercorg.github.io/merc/merc_typecheck/lowering/instantiate/struct.TemplateInstantiation.html)
   per generated block — instead of re-running inference.** This is the same
   "prove once, specialize by substitution" step described in [Checking a
   template's equations once,
-  rigidly](polymorphism.md#checking-a-templates-equations-once-rigidly),
+  rigidly](../typechecking/polymorphism.md#checking-a-templates-equations-once-rigidly),
   applied at the point the specialization is actually needed. Two
   instantiations of the same template (`Bag(Nat)`, `Bag(D)`) never collide the
   way an earlier design's grouping machinery had to guard against, because
@@ -102,7 +105,7 @@ everything else about the case stays guarded.
 
 ### Structured sorts
 
-merc's [desugaring](desugaring.md) turns `sort D = struct …;` into an abstract
+merc's [desugaring](../typechecking/desugaring.md) turns `sort D = struct …;` into an abstract
 sort `D` plus its constructor/recogniser/projection declarations, so `D` lands
 in the *sorts* section. The toolset instead keeps the declaration as an
 alias `D = SortStruct(…)` and leaves its sorts section empty. Every symbol
@@ -122,7 +125,7 @@ constructor and equation terms worth checking separately.
 
 ### Canonical sort representatives
 
-[Normalization](name-resolution.md#normalization) erases alias names, and not
+[Normalization](../typechecking/name-resolution.md#normalization) erases alias names, and not
 only in the alias section
 (`sort B = A;` becomes `B = Nat` once `A = Nat`) — every *use* of the alias is
 expanded too, so a mapping declared as `C -> Bool` lowers with `List(Nat)`
@@ -151,13 +154,13 @@ var x: Nat;
 eqn f(x) = y + y whr y = x + 1 end;
 ```
 
-Both checkers pick the exact overload `+: Nat # Pos -> Pos` for `x + 1`,
-binding `y: Pos`. The body `y + y` then has expected sort `Nat`: the toolset
-*pushes that expectation down* into the choice of `+`, picking `+: Nat # Nat
--> Nat` and wrapping *both* operands in `Pos2Nat`. merc instead types the
-body at its own minimal sort, `Pos`, and widens the result once at the end.
-Both readings are well-sorted — only the toolset's is what the binary aterm
-form holds, so it is the one lowering must match.
+Both checkers pick the exact overload `+: Nat # Pos -> Pos` for `x + 1`, binding
+`y: Pos`. The body `y + y` then has expected sort `Nat`: the mCRL2 toolset *pushes
+that expectation down* into the choice of `+`, picking `+: Nat # Nat -> Nat` and
+wrapping *both* operands in `Pos2Nat`. merc instead types the body at its own
+minimal sort, `Pos`, and widens the result once at the end. Both readings are
+well-sorted — only the mCRL2 toolset's is what the binary aterm form holds, so
+it is the one lowering must match.
 
 The minimal reproduction drops the `where` entirely:
 
@@ -167,9 +170,9 @@ var x: Nat;
 eqn f(x) = x + 1;
 ```
 
-With `x: Nat` and the equation's expected sort `Nat`, the toolset resolves
+With `x: Nat` and the equation's expected sort `Nat`, the mCRL2 toolset resolves
 `+` at its result sort — `+: Nat # Nat -> Nat`, retyping the literal `1` at
-`Nat` — while merc's ranked search prefers the overload needing no widening
-at all, `+: Nat # Pos -> Pos`, and widens the result to `Nat` afterwards.
-Only the equations section can see the difference; sorts, aliases,
-constructors and mappings are untouched.
+`Nat` — while merc's ranked search prefers the overload needing no widening at
+all, `+: Nat # Pos -> Pos`, and widens the result to `Nat` afterwards. Only the
+equations section can see the difference; sorts, aliases, constructors and
+mappings are untouched.

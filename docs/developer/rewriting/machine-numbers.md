@@ -12,7 +12,7 @@ itself (Appendix B of the mCRL2 manual): a *recursive binary* encoding. A
 `Pos` (a positive natural number) is built from two constructors,
 
 ```
-@c1                 = 1
+@c1                      = 1
 @cDub(b : Bool, p : Pos) = 2p + b
 ```
 
@@ -74,32 +74,10 @@ operation on a word is one native machine instruction rather than a sequence
 of rewrite steps — the same asymptotic quantity, bits, is now amortized 64 at
 a time.
 
-## Why have both
+### Performance
 
-The two encodings are answers to different questions about the same
-arithmetic. The binary encoding answers "is this the number the
-specification says it is?" as directly as possible: every step is a rewrite
-rule, so nothing about the arithmetic needs to be trusted beyond the
-rewriting system itself. The machine-word encoding answers "can this be
-computed fast enough to be useful?": by delegating the arithmetic on
-individual words to native code, it turns a computation that costs one
-rewrite step *per bit* into one that costs a small, fixed number of native
-operations *per word*, which is the difference between arithmetic that scales
-to the sizes model checking and reachability analysis actually produce and
-arithmetic that does not. The price of that speed is that the native word
-operations are no longer verified by the same means as the rest of the
-specification — each one has to be shown, separately, to compute exactly the
-infinite-precision operation its type and surrounding equations assume it
-performs, since a bug there is no longer a bug a proof about the rewrite
-rules would catch.
-
-Concretely, the gap is large enough to matter well before numbers get large:
-the bundled end-to-end tests record `sqrt(65535) * sqrt(65535) <= 65535`
-taking roughly 20 s to rewrite under the binary encoding against roughly
-0.4 s under the machine-word one. Both encodings remain available — `merc`
-exposes the choice as a [`NumberEncoding`](https://mercorg.github.io/merc/merc_typecheck/enum.NumberEncoding.html) setting ([`Binary`](https://mercorg.github.io/merc/merc_typecheck/enum.NumberEncoding.html#variant.Binary) or [`MachineWord`](https://mercorg.github.io/merc/merc_typecheck/enum.NumberEncoding.html#variant.MachineWord)) —
-because the right trade-off depends on what a
-specification is being used for: the binary encoding when trusting the
-arithmetic to be exactly what the equations say matters most, the
-machine-word encoding when the specification's numbers are large or its
-arithmetic runs often enough that speed dominates.
+The main usecase for the machine numbers is the efficiency of computing with
+numbers. Concretely, the gap is large enough to matter well before numbers get
+large: the bundled end-to-end tests record `sqrt(65535) * sqrt(65535) <= 65535`
+taking roughly 20 s to rewrite under the binary encoding against roughly 0.4 s
+under the machine-word one.
