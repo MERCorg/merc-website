@@ -58,7 +58,7 @@ This is a *static* pass in the sense that it only ever looks once, at the
 goal's body as originally split — it runs before search starts and does not
 run again as search proceeds.
 
-## Applying it dynamically
+## Dynamic
 
 The static pass only sees the *original* body's top-level conjuncts. A
 conjunct that only becomes `x == e` shaped *after* some other variable has
@@ -99,7 +99,7 @@ column is exactly what a dynamic one-point pass would achieve on this goal,
 simulated by handing the enumerator the post-collapse goal directly instead
 of implementing the re-scan.
 
-### Why merc doesn't do this yet
+### Overhead of Dynamic
 
 The static fixpoint already resolves every conjunct-*chain* case for free
 (the `n == 5 && m == n` example above), so a dynamic pass would only earn its

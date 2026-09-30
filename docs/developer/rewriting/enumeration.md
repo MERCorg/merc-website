@@ -27,25 +27,3 @@ applied to a normalised digit still needs its carry-propagating equation to
 fire — and the values handed back to a caller are spliced straight into
 further rewrite calls as substitution images, which requires them to be normal
 forms.
-
-## Testing the enumerator against a second implementation
-
-`merc_enumerate` ships a `NaiveEnumerator` alongside the real one, in the
-same role [`merc_sabre::NaiveRewriter`](https://mercorg.github.io/merc/merc_sabre/struct.NaiveRewriter.html) plays for the rewrite engines:
-materialise every ground term of each variable's sort up to a size bound,
-substitute all variables at once, rewrite once per combination. No
-incremental normalisation, no pruning, no one-point rule, no fairness scheme
-to get wrong. Random goals are then run through both and their solution
-*sets* compared.
-
-Two things make that suite cheap enough to run 200 goals per invocation.
-Goals are built through the [`merc_data`](https://mercorg.github.io/merc/merc_data/index.html)/[`merc_sabre`](https://mercorg.github.io/merc/merc_sabre/index.html) API rather than
-generated as source text, so neither the parser nor the typechecker runs per
-goal. And the rewriters are built once, outside the loop: constructing an
-[`InnermostRewriter`](https://mercorg.github.io/merc/merc_sabre/struct.InnermostRewriter.html) compiles a [`SetAutomaton`](https://mercorg.github.io/merc/merc_sabre/struct.SetAutomaton.html) over every equation the
-specification carries, which includes the whole lowered built-in library
-(331 equations even for a specification declaring one small custom sort), so
-rebuilding one per goal dominated the runtime of an earlier version of the
-test — over a CPU-minute for 200 goals, against well under a second with the
-rewriters shared. A real caller builds its rewriter once per run for exactly
-the same reason.
