@@ -25,8 +25,6 @@ nav = [
       "developer/rewriting/machine-numbers.md",
       "developer/rewriting/condition-caching.md",
       "developer/rewriting/lowering.md",
-      "developer/rewriting/enumeration.md",
-      "developer/rewriting/one-point-rewriter.md",
     ] },
     { "Parsing" = [
       "developer/parsing/disambiguation.md",
@@ -42,8 +40,10 @@ nav = [
       "developer/typechecking/system-specification.md",
       "developer/typechecking/polymorphism.md",
       "developer/typechecking/sort-inference.md",
-      "developer/typechecking/inference/unification.md",
-      "developer/typechecking/inference/solver.md",
+      { "Inference" = [
+        "developer/typechecking/inference/ranked-backtracking.md",
+        "developer/typechecking/inference/unification.md",
+      ] },
       "developer/typechecking/typing-info.md",
     ] },
     { "Specification" = [
@@ -53,9 +53,6 @@ nav = [
       "developer/symbolic/saturation.md",
       "developer/symbolic/zielonka.md",
       "developer/symbolic/partial-solving.md",
-    ] },
-    { "Linearisation" = [
-      "developer/linearisation/index.md",
     ] },
   ] },
   { Maintainers = [
