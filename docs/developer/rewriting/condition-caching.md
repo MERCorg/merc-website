@@ -1,12 +1,12 @@
 # Condition caching
 
-Checking the conditions of a conditional rewrite rule (Definition 3) can
+Checking the conditions of a conditional rewrite rule ([Conditional rewriting, Definition 1](conditional-rewriting.md#def-conditional-rewrite-system)) can
 normalise the same term many times. This page defines the condition cache that
 both [`SabreRewriter`](https://mercorg.github.io/merc/merc_sabre/)
 and `InnermostRewriter`
-use against this (Definition 17), and what it does and does not catch.
+use against this (Definition 1), and what it does and does not catch.
 
-**Definition 17 (condition cache).** A *condition cache* is a map, bounded in size
+<a id="def-condition-cache"></a>**Definition 1 (condition cache).** A *condition cache* is a map, bounded in size
 and evicting the least recently used entry, from the instance $u\sigma$ of a
 condition side to its normal form. It is filled while rewriting, and consulted
 whenever a condition side is normalised.
@@ -31,7 +31,7 @@ Both engines always have a cache: `new` uses a default capacity, and
 `with_condition_cache_capacity` another. Since the key is
 the *substituted* term rather than any rule's unsubstituted pattern, which
 variable name a rule happens to bind an argument to never enters into the
-lookup at all. By maximal sharing (Definition 2), two structurally equal
+lookup at all. By maximal sharing ([Terms, Definition 2](aterms.md#def-maximal-sharing)), two structurally equal
 substituted terms are the same term, so two entirely unrelated rules that happen to compute
 the same concrete subterm still share the cache entry.
 

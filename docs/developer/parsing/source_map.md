@@ -4,8 +4,8 @@ A specification may `%import` other files, a language server parses in-memory
 buffers that were never saved, and later stages register generated content
 without a file behind it. Every span produced from any of these must render
 correctly, without the consumer knowing where it came from. This page defines the
-shared offset space that makes this possible (Definition 5) and how `%import`
-composes files (Definition 6). The offset space is
+shared offset space that makes this possible (Definition 1) and how `%import`
+composes files (Definition 2). The offset space is
 `SourceMap`
 in [`merc_utilities`](https://mercorg.github.io/merc/merc_utilities/index.html);
 imports are resolved in
@@ -13,7 +13,7 @@ imports are resolved in
 
 ## One shared offset space
 
-**Definition 5 (source map).** A *source map* is a sequence of sources
+<a id="def-source-map"></a>**Definition 1 (source map).** A *source map* is a sequence of sources
 $f_1, \ldots, f_n$, each with a text $t_i$ and a *base offset* $b_i$, where
 $b_1 = 0$ and $b_{i+1} = b_i + |t_i|$. Every span is a pair of offsets into this
 one space. An offset $o$ belongs to the source $f_i$ with $b_i \le o < b_{i+1}$,
@@ -45,7 +45,7 @@ about imports. Directives are found by a textual scan for lines that, once
 trimmed, have exactly the shape `%import "PATH"`, so the scan works before the
 file is known to parse.
 
-**Definition 6 (import resolution).** Resolving the imports of a root file walks
+<a id="def-import-resolution"></a>**Definition 2 (import resolution).** Resolving the imports of a root file walks
 the graph of `%import` directives depth first. It keeps the set of files already
 merged and the stack of files currently being loaded, both by canonical path.
 For every directive whose target

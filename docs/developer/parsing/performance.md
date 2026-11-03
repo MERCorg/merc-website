@@ -10,7 +10,7 @@ the process. Both parse and linearize with the reference mCRL2 toolset
 specifications; it is a consequence of the way pest's PEG backtracking
 interacts with the if-then(-else) rules of `ProcExpr`. This page describes the
 two independent causes, defines the condition positions that the parser marks
-before parsing (Definition 3), and states why marking them is linear and safe
+before parsing (Definition 1), and states why marking them is linear and safe
 (Theorems 1 and 2).
 
 ## The shared-token ambiguity
@@ -71,7 +71,7 @@ being asked twice, so there is nothing to reuse.
 
 ## The workaround: marking conditions
 
-**Definition 3 (condition position).** In a `proc` or `init` section, an
+<a id="def-condition-position"></a>**Definition 1 (condition position).** In a `proc` or `init` section, an
 *operand position* is a position where a process operand can start, in a bracket
 context that contains process expressions: the top level, a process bracket, or
 the operand of `block`, `allow`, `hide`, `rename` or `comm`. An operand position
@@ -97,7 +97,7 @@ condition never attempts the `ProcExprNoIf ~ "<>"` tail. Both codepoints are
 silent rules in the grammar, so they never appear in the syntax tree, and mCRL2
 source cannot contain them.
 
-**Theorem 1 (linear scan).** The scan that places the markers takes time linear in
+<a id="thm-linear-scan"></a>**Theorem 1 (linear scan).** The scan that places the markers takes time linear in
 the length of the text.
 
 *Proof idea.* The scan visits every token once. A run that fails to end in `->`
@@ -106,7 +106,7 @@ scanned again; bracket groups are skipped by matching brackets; and every
 condition is pushed onto, and popped from, the stack of pending conditions at
 most once.
 
-**Theorem 2 (markers are safe).** If the marked text parses, its syntax tree is
+<a id="thm-markers-are-safe"></a>**Theorem 2 (markers are safe).** If the marked text parses, its syntax tree is
 the syntax tree that the grammar without markers assigns to the original text.
 
 *Proof idea.* The markers only *gate* the condition rules: a marker never makes a
@@ -195,7 +195,7 @@ proc P(x, y: Bool) = x -> y -> a <> b <> e;
 
 parses identically to `x -> (y -> a <> b) <> e`: the *first* `<>` closes the
 *most recently opened* condition, the second closes `x`'s. This is exactly the
-pairing of Definition 3, and it is why `ProcExprNoIf` must keep
+pairing of Definition 1, and it is why `ProcExprNoIf` must keep
 recognizing a bare nested condition inside a `then` branch even though mCRL2's
 documentation says no if-then productions are allowed there: the shipped
 `mcrl22lps` accepts it. A `<>` inside a nested `(...)` only closes a condition

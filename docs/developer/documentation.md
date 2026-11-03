@@ -32,10 +32,13 @@ the code is built on, the **theorems** it relies on, and the **architecture**
 that implements them. They are written like the preliminaries of a paper, not
 as a tutorial or a changelog.
 
-- Formal statements are bold-labelled and numbered within a section, such as
-  **Definition 3 (attractor).** and **Theorem 2 (termination).**; all pages of
-  one section in the navigation share one numbering. Definitions from a paper
-  cite the paper's own number, for example "([LWW22], Definition 4)".
+- Formal statements are bold-labelled and numbered per page, each kind
+  separately, such as **Definition 3 (attractor).** and **Theorem 2
+  (termination).**, and each has an anchor named after the concept, written
+  as inline HTML before the label: `<a id="def-attractor"></a>`. Adding a
+  statement then renumbers only its own page, and links to it keep working.
+  Definitions from a paper cite the paper's own number, for example
+  "([LWW22], Definition 4)".
 - A page restates the definitions and theorem statements it uses, also those
   from a paper, in the notation of its section, so that it can be read on its
   own; pseudocode is rewritten in that notation rather than copied. Proofs,
@@ -75,8 +78,10 @@ is therefore linked, at least at its first mention on the page.
 - Examples: link the example's directory and give the command that runs it,
   such as `cargo run -p merc_pbes --example write_srf_capture`.
 - Website: link a section by an explicit anchor, `## Well-typedness {#well-typedness}`,
-  so that rewording the heading keeps the link; refer to "Definition 4" in the
-  text, never as a link target, since numbers change when a definition is added.
+  so that rewording the heading keeps the link. A bare "Definition 4" refers to
+  the current page; a statement on another page is always a link that names
+  that page, `[Parity games, Definition 1](parity_games.md#def-parity-game)`,
+  so that `lychee` reports it when the statement moves or its anchor changes.
 - Papers: cite them with their own definition and theorem numbers, and link the
   DOI.
 

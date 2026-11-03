@@ -8,8 +8,7 @@
 
 This page defines the one ambiguity of the mCRL2 grammar that
 [`merc_syntax`](https://mercorg.github.io/merc/merc_syntax/index.html) resolves
-after parsing, and how it is resolved. The pages of this section share one
-numbering of definitions and theorems.
+after parsing, and how it is resolved.
 
 mCRL2's concrete syntax overloads tokens between the process algebra and the
 data language — most notably `.` (process sequential composition vs. the data
@@ -25,14 +24,14 @@ parser happily keeps consuming `.`/`+`/`||` as data operators straight past
 the point where the concrete syntax actually meant to hand control back to
 the process algebra.
 
-**Definition 1 (swallowed process operand).** In a parsed process expression, a
+<a id="def-swallowed-process-operand"></a>**Definition 1 (swallowed process operand).** In a parsed process expression, a
 condition `c -> P` *swallows* a process operand if its condition $c$ is a data
 expression of the form $e_1 \mathbin{op} e_2$, with $op$ one of `.`
 (at), `+` (addition) or `||` (disjunction), in which $e_1$ is an application
 $a(\ldots)$ of a declared action or process name $a$, possibly under `hide`,
 `block` or `allow`.
 
-**Definition 2 (recovery).** Recovery replaces a swallowing condition by the
+<a id="def-recovery"></a>**Definition 2 (recovery).** Recovery replaces a swallowing condition by the
 process expression that its tokens denote when the swallowed operator is read as
 the process operator for the same token: sequential composition for `.`, choice
 for `+` and parallel composition for `||`, with the precedence of process

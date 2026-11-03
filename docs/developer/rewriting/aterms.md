@@ -10,17 +10,16 @@ terms, inspired by the C++ ATerm library of the [mCRL2](https://www.mcrl2.org/)
 toolset (the "A" stood for *annotated*, which no longer applies). Every term in
 merc, such as a data expression, a PBES expression or a state of a state space,
 is one. This page defines terms and maximal sharing (Definitions 1 and 2), and
-describes how terms are kept alive and passed between threads. The pages of the
-Rewriting section share one numbering of definitions and theorems.
+describes how terms are kept alive and passed between threads.
 
 ## Terms and maximal sharing
 
-**Definition 1 (term).** A *function symbol* is a pair $f/n$ of a name and an
+<a id="def-term"></a>**Definition 1 (term).** A *function symbol* is a pair $f/n$ of a name and an
 arity. A *term* is $f(t_1, \ldots, t_n)$ for a function symbol $f/n$ and terms
 $t_1, \ldots, t_n$. Terms are compared structurally: $f(t_1, \ldots, t_n) =
 g(u_1, \ldots, u_m)$ iff $f/n = g/m$ and $t_i = u_i$ for all $i$.
 
-**Definition 2 (maximal sharing).** A store of terms is *maximally shared* if no
+<a id="def-maximal-sharing"></a>**Definition 2 (maximal sharing).** A store of terms is *maximally shared* if no
 two distinct entries are structurally equal.
 
 All terms live in one global term pool, which is maximally shared: constructing a

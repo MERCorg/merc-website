@@ -1,8 +1,8 @@
 # Precedence
 
 This page compares how merc and mCRL2 group data expressions that mix prefix and
-infix operators, defines the grouping merc's parser produces (Definition 4,
-Theorem 3), and relates the case where the two differ to the literature on
+infix operators, defines the grouping merc's parser produces (Definition 1,
+Theorem 1), and relates the case where the two differ to the literature on
 operator-precedence conflicts.
 
 merc and mCRL2 implement the same documented `DataExpr` precedence table.
@@ -49,12 +49,12 @@ algorithm. The precedence *levels* of the data operators are those of the mCRL2
 grammar: among others, the quantifiers and `lambda` have level 1, `&&` has
 level 4, and `!` and unary minus have level 12.
 
-**Definition 4 (operand of a prefix operator).** In precedence climbing, the
+<a id="def-operand-of-a-prefix-operator"></a>**Definition 1 (operand of a prefix operator).** In precedence climbing, the
 operand of a prefix operator of level $\ell$ is the longest expression that
 starts directly after it and contains no infix operator of level at most $\ell$
 outside brackets, and outside the operands of nested prefix operators.
 
-**Theorem 3 (nested prefix operators).** If a prefix operator of level $\ell_1$ is
+<a id="thm-nested-prefix-operators"></a>**Theorem 1 (nested prefix operators).** If a prefix operator of level $\ell_1$ is
 directly followed by a prefix operator of level $\ell_2 < \ell_1$, then the operand
 of the inner operator extends over every infix operator of level greater than
 $\ell_2$ that follows, regardless of $\ell_1$; the outer operator's operand is the
