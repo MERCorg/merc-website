@@ -1,119 +1,343 @@
-# The Set Automaton
+```math_preamble
+\usepackage[paperwidth=40cm,paperheight=60cm,margin=5mm]{geometry}
+\usepackage{algpseudocode}
+\algrenewcommand{\algorithmiccomment}[1]{$\triangleright$ #1}
+\newcommand{\hd}{\mathsf{hd}}
+\newcommand{\pos}{\mathsf{pos}}
+\newcommand{\sub}{\mathsf{sub}}
+\newcommand{\reduce}{\mathsf{reduce}}
+\newcommand{\deriv}{\mathsf{deriv}}
+\newcommand{\lift}{\mathsf{lift}}
+\newcommand{\gcp}{\mathsf{gcp}}
+\newcommand{\eval}{\mathsf{eval}}
+\newcommand{\Pos}{\mathbb{P}}
+\newcommand{\F}{\mathbb{F}}
+\newcommand{\T}{\mathbb{T}}
+\newcommand{\Dom}{\mathcal{D}}
+\newcommand{\Lpat}{\mathcal{L}}
+\newcommand{\MO}{\mathit{MO}}
+\newcommand{\MA}{\mathit{MA}}
+```
+# The set automaton
 
-`merc_sabre` — the **S**et **A**utomaton **B**ased **R**ewrit**e** engine — finds
-every left-hand side that matches *anywhere* in a term in a single automaton
-walk, rather than trying each rewrite rule against each subterm in turn. The
-construction is based on
+A *set automaton* finds every match of every left-hand side of a rewrite
+system ([Conditional rewriting, Definition 1](conditional-rewriting.md#def-conditional-rewrite-system)) in a term, inspecting each function symbol of the term
+exactly once. This page defines the set automaton and its construction, after
 
-> Erkens, R., Groote, J.F. (2021). *A Set Automaton to Locate All Pattern
-> Matches in a Term*. In: Theoretical Aspects of Computing – ICTAC 2021.
-> [DOI](https://doi.org/10.1007/978-3-030-85315-0_5)
+> [EG21] Erkens, R., Groote, J.F. (2021). *A Set Automaton to Locate All Pattern
+> Matches in a Term*. In: Theoretical Aspects of Computing – ICTAC 2021,
+> LNCS 12819, pp. 67–85. [DOI](https://doi.org/10.1007/978-3-030-85315-0_5)
 
-## Goals, obligations, announcements
+(Definitions 1 to 8, Theorems 1 to 3), and then how merc's
+[`SetAutomaton`](https://mercorg.github.io/merc/merc_sabre/struct.SetAutomaton.html)
+deviates from it (Definition 9, Conjecture 1). The automaton is the matching
+step of
+[`SabreRewriter`](https://mercorg.github.io/merc/merc_sabre/struct.SabreRewriter.html),
+the **S**et **A**utomaton **B**ased **R**ewrit**e** engine of
+[`merc_sabre`](https://mercorg.github.io/merc/merc_sabre/index.html). It
+assumes [Terms, Definitions 1 and 2](aterms.md#def-term) and
+[Conditional rewriting, Definitions 1 to 3](conditional-rewriting.md#def-conditional-rewrite-system).
 
-Every state of the automaton carries a set of [`MatchGoal`](https://mercorg.github.io/merc/merc_sabre/set_automaton/match_goal/struct.MatchGoal.html)s — one per rewrite
-rule that could still fire from here:
+## Positions and patterns
 
-```rust
-pub struct MatchGoal {
-    pub obligations: Vec<MatchObligation>,
-    pub announcement: MatchAnnouncement,
-}
+<a id="def-position"></a>**Definition 1 (position).** A *position* is a finite sequence of positive
+natural numbers; $\Pos$ is the set of positions, $\varepsilon$ the empty
+sequence (the *root*), and $p.q$ concatenation. Position $p$ is *below* $q$,
+$p \le q$, if $p = q.q'$ for some $q'$. With this order $(\Pos, \le)$ is a
+join-semilattice, and the join $\gcp(P)$ of a finite non-empty set $P$ is its
+*greatest common prefix*. Positions $p$ and $q$ are *comparable* if $p \le q$ or
+$q \le p$: $2.2.3$ and $2$ are, $2.2.3$ and $1$ are not, and $\varepsilon$ is
+comparable to every position. For a term $t$, $\Dom(t)$ is the set of positions
+of $t$, $t[p]$ the subterm at $p \in \Dom(t)$, and $\hd(t)$ its head symbol
+([EG21], Section 2 and Definition 1).
 
-pub struct MatchObligation {
-    pub pattern: DataExpression,
-    pub position: DataPosition,
-}
+<a id="def-pattern-match"></a>**Definition 2 (pattern, match).** Over a signature $\F$ with one variable
+$\omega$, a *pattern* is a term in $\T(\F) \setminus \{\omega\}$, and a *pattern
+set* $\Lpat$ is a finite non-empty set of patterns. A pattern $\ell$ *matches*
+a term $t$ at position $p$ if $\hd(t[p.p']) = \hd(\ell[p'])$ for every
+$p' \in \Dom(\ell)$ with $\ell[p'] \neq \omega$. The *subpatterns* of $\ell$
+are $\sub(\ell) = \{\ell[p] \mid p \in \Dom(\ell),\ \ell[p] \neq \omega\}$,
+extended pointwise to $\sub(\Lpat)$ ([EG21], Section 2).
 
-pub struct MatchAnnouncement {
-    pub rule: Rule,
-    pub position: DataPosition,
-    pub symbols_seen: usize,
-}
+The patterns of a rewrite system are its left-hand sides with every variable
+replaced by $\omega$. A match of a pattern is therefore a match of the rule only
+if the rule is left-linear; for a non-linear left-hand side, or a rule with
+conditions, Sabre checks the equal variables and the conditions after the
+automaton announces the match (see [`matching`](https://mercorg.github.io/merc/merc_sabre/matching/index.html)
+and [Condition caching](condition-caching.md)).
+[`is_supported_rule`](https://mercorg.github.io/merc/merc_sabre/fn.is_supported_rule.html)
+excludes higher-order rules, rules with binders or where clauses, and rules with
+variables that do not occur in their left-hand side.
+
+## Set automata
+
+<a id="def-match-goal"></a>**Definition 3 (match goal).** The *match obligations* and *match announcements*
+are
+
+```math
+\[
+\MO = \mathcal{P}(\sub(\Lpat) \times \Pos) \setminus \{\emptyset\}
+\qquad
+\MA = \Lpat \times \Pos .
+\]
 ```
 
-- An **obligation** is a sub-pattern of the rule's left-hand side that still
-  needs checking, pinned to the position in the term it must hold at. Every
-  goal starts with exactly one obligation — the whole left-hand side at the
-  root, position `ε`.
-- The **announcement** position is where the goal itself is anchored — the
-  position at which the rule fires once every obligation is satisfied. It
-  also starts at `ε`, and only ever moves by having a common prefix stripped
-  off once the automaton has actually distinguished this rule from its
-  neighbours (see below).
+A *match goal* is a pair in $\MO \times \MA$, written
+$\ell_1@p_1, \dots, \ell_n@p_n \to \ell@p$: to announce that $\ell$ matches at
+$p$, the subpattern $\ell_i$ must still be observed at $p_i$ for every $i$. Its
+positions are $\pos(mo) = \{p \mid (\ell', p) \in mo\}$. A goal
+$\ell@p \to \ell@p$ is *fresh*, and a goal $mo \to \ell@\varepsilon$ is a
+*root goal* ([EG21], Section 4).
 
-Building the automaton is a fixpoint computation over states. For a state and
-a head symbol, the derivative computation sorts each of the state's goals
-into:
+<a id="def-set-automaton"></a>**Definition 4 (set automaton).** A *set automaton* for $\Lpat$ is a tuple
+$(S, s_0, L, \delta, \eta)$ of a finite set of states
+$S \subseteq \mathcal{P}(\MO \times \MA) \setminus \{\emptyset\}$, an initial
+state $s_0 \in S$, a *label* $L : S \to \Pos$, a transition function
+$\delta : S \times \F \to \mathcal{P}(S \times \Pos)$ and an output function
+$\eta : S \times \F \to \mathcal{P}(\Lpat \times \Pos)$. The empty set is the
+final state, with no transitions and no output ([EG21], Section 4).
 
-- **completed** — the one remaining obligation *is* the symbol at this
-  position, with only variables below it. The goal becomes an output
-  ([`Transition::announcements`](https://mercorg.github.io/merc/merc_sabre/set_automaton/automaton/struct.Transition.html#structfield.announcements)) rather than part of any destination state.
-- **discarded** — an obligation at this position expects a *different* head
-  symbol. Dead end, dropped.
-- **unchanged** — no obligation is pinned to this position at all; the goal
-  carries forward untouched.
-- **reduced** — an obligation *is* pinned here and its symbol matches; it's
-  replaced by one fresh obligation per non-variable argument, one level
-  deeper.
+A state is evaluated at a position $p$ of the term, the pair $(s, p)$ being a
+*configuration*: it inspects the head symbol at $p.L(s)$, announces the outputs
+of the transition relative to $p$, and continues in every configuration the
+transition leads to. These configurations are independent, so they may be
+explored in any order, or in parallel.
 
-The unchanged and reduced goals become the raw material for whatever state(s)
-this transition leads to.
+<a id="def-evaluation"></a>**Definition 5 (evaluation).** For a closed term $t$, the evaluation of $M$ in
+configuration $(s, p)$ is
 
-## Partitioning goals into destination states
-
-A single transition doesn't have to lead to one destination. Goals whose
-remaining obligations sit under disjoint subtrees can be split across several
-independent destinations — doing so lets the greatest common prefix of each
-group factor a longer common position prefix out, which keeps that
-destination's label (and thus how much lookahead is needed before the
-automaton can say anything useful) tighter.
-
-Partitioning groups goals by whether their *announcement* positions are
-"comparable" — one a prefix of the other:
-
-```rust
-/// Checks for two positions whether one is a subposition of the other.
-/// For example 2.2.3 and 2 are comparable. 2.2.3 and 1 are not.
-pub fn pos_comparable(p1: &DataPosition, p2: &DataPosition) -> bool
+```math
+\[
+\eval_M(s, p, t) = \{\ell@p.q \mid \ell@q \in \eta(s, f)\}
+  \cup \bigcup_{(s', p') \in \delta(s, f)} \eval_M(s', p.p', t)
+\quad\text{where } f = \hd(t[p.L(s)]),
+\]
 ```
 
-[`pos_comparable`](https://mercorg.github.io/merc/merc_sabre/set_automaton/match_goal/struct.MatchGoal.html#method.pos_comparable) treats the *empty* position as comparable to anything — it
-returns `true` the moment either position runs out of indices to compare. At
-the very start of a match, before any rule has been distinguished from its
-siblings, every goal's announcement position is still `ε`; the partition step
-special-cases this ("if one of the goals has a root position, all goals are
-related") and puts everything in one group. That's correct and cheap: it
-happens once, doesn't recurse, and doesn't grow.
+and the matches of $M$ in $t$ are $\eval_M(s_0, \varepsilon, t)$ ([EG21],
+Section 6).
 
-Separately, a transition also introduces *fresh* subtrees — the argument
-positions the head symbol's arity adds — each of which gets one brand-new
-goal per rewrite rule, since that rule's pattern hasn't been looked at down
-there yet. Deriving the transition has to decide, for each fresh position,
-whether it belongs with one of the existing groups or needs a destination of
-its own. **This decision is where a real bug lived**, fixed
-after being exposed by the machine-word work.
+```math algorithm
+\begin{algorithmic}[1]
+\Function{Match}{$M, t$}
+  \State $W \gets \{(s_0, \varepsilon)\}$, $A \gets \emptyset$
+  \While{$W \neq \emptyset$}
+    \State take a configuration $(s, p)$ out of $W$ \Comment{any order}
+    \State $f \gets \hd(t[p.L(s)])$
+    \State $A \gets A \cup \{\ell@p.q \mid \ell@q \in \eta(s, f)\}$
+    \State $W \gets W \cup \{(s', p.p') \mid (s', p') \in \delta(s, f)\}$
+  \EndWhile
+  \State \Return $A$
+\EndFunction
+\end{algorithmic}
+```
 
-## The partition-merge bug
+## Construction
 
-Until this fix, the fresh-subtree decision reused the same
-announcement-position comparison the partition step uses internally — testing a
-fresh position against the deduplicated announcement positions of each
-group. That's unsound as a *repeated* test, because an announcement position
-only shortens once every member of its group shares a longer common prefix,
-and the common-prefix computation forces that common length to `0` the instant
-*any* member — announcement or obligation — is already sitting at `ε`. So a
-group containing even one still-open, root-anchored goal keeps announcement
-position `ε` pinned indefinitely, at every state reachable while that goal
-survives, not only at the very first step. Since `pos_comparable(ε, _)` is
-always `true`, such a group absorbed *every* fresh subtree from then on,
-splicing in a fresh copy of every rewrite rule each time — so the state it
-produced never matched one already built, the construction's worklist never
-drained, and building the automaton never returned.
+The states are sets of match goals, and the transitions are computed from a
+derivative of a state with respect to the symbol observed at its label, much
+like Brzozowski derivatives of regular expressions.
 
-### A worked example: `+` on machine-word `Pos`
+<a id="def-derivative"></a>**Definition 6 (derivative).** Observing $f$ at position $p$ changes a match
+obligation into
 
-`merc`'s machine-word encoding gives `Pos` addition six equations:
+```math
+\[
+\reduce(mo, f, p) = \{\ell@q \in mo \mid q \neq p\}
+  \cup \{\ell[i]@p.i \mid \ell@p \in mo,\ 1 \le i \le \#f,\ \ell[i] \neq \omega\}.
+\]
+```
+
+The *$f$-derivative* of a state $s$ is
+$\deriv(s, f) = \mathit{unchanged} \cup \mathit{reduced} \cup \mathit{fresh}$,
+where
+
+```math
+\[
+\begin{aligned}
+\mathit{unchanged} &= \{mo \to ma \in s \mid L(s) \notin \pos(mo)\} \\
+\mathit{reduced} &= \{\reduce(mo, f, L(s)) \to ma \mid mo \to ma \in s,\
+  \exists \ell\colon \ell@L(s) \in mo \land \hd(\ell) = f,\
+  \reduce(mo, f, L(s)) \neq \emptyset\} \\
+\mathit{fresh} &= \{\ell@L(s).i \to \ell@L(s).i \mid \ell \in \Lpat,\ 1 \le i \le \#f\}
+\end{aligned}
+\]
+```
+
+([EG21], Section 4.2). A goal with an obligation at $L(s)$ whose head is not
+$f$ is *discarded*: it occurs in none of the three sets. A goal whose only
+obligation is $f(\omega, \dots, \omega)@L(s)$ is *completed*: its obligation
+reduces to $\emptyset$ and its announcement becomes an output.
+
+<a id="def-dependency"></a>**Definition 7 (dependency).** On a finite set $X \subseteq \MO$, obligations
+are *directly dependent*, $mo_1 \mathrel{R} mo_2$, if
+$\pos(mo_1) \cap \pos(mo_2) \neq \emptyset$, and *dependent*,
+$mo_1 \sim_X mo_2$, if they are related by the transitive closure of $R$. This
+extends to goals through their obligations, and $[\deriv(s, f)]_\sim$ is the set
+of equivalence classes $K$ of the derivative ([EG21], Section 4.3).
+
+<a id="def-set-automaton-of-a-pattern-set"></a>**Definition 8 (set automaton of a pattern set).** For a set of goals $K$, let
+$\gcp(K)$ be the greatest common prefix of its announcement positions, and
+$\lift(K)$ the goals of $K$ with that prefix removed from every position:
+$\lift(K) = \{(\lift(mo), \ell@p') \mid (mo, \ell@\gcp(K).p') \in K\}$ with
+$\lift(mo) = \{\ell@p' \mid \ell@\gcp(K).p' \in mo\}$. The set automaton of
+$\Lpat$ is given by
+
+```math
+\[
+\begin{aligned}
+s_0 &= \{\ell@\varepsilon \to \ell@\varepsilon \mid \ell \in \Lpat\},
+  \qquad L(s_0) = \varepsilon \\
+\delta(s, f) &= \{(\lift(K), \gcp(K)) \mid K \in [\deriv(s, f)]_\sim\} \\
+\eta(s, f) &= \{ma \mid f(\omega, \dots, \omega)@L(s) \to ma \in s\}
+\end{aligned}
+\]
+```
+
+where $L(s)$ is any position in $\pos(mo)$ of a root goal $mo \to \ell@\varepsilon$
+of $s$, fixed when $s$ is created ([EG21], Section 4.7).
+
+Partitioning lets independent parts of the term be explored by independent
+configurations, and lifting keeps positions short; together they make the set
+of reachable states finite. The construction is a worklist over the states
+discovered so far:
+
+```math algorithm
+\begin{algorithmic}[1]
+\Function{Construct}{$\Lpat$}
+  \State $s_0 \gets \{\ell@\varepsilon \to \ell@\varepsilon \mid \ell \in \Lpat\}$, $L(s_0) \gets \varepsilon$
+  \State $S \gets \{s_0\}$, $Q \gets [s_0]$ \Comment{a queue}
+  \While{$Q \neq []$}
+    \State $s \gets \Call{PopFront}{Q}$
+    \ForAll{$f \in \F$}
+      \State $\eta(s, f) \gets \{ma \mid f(\omega, \dots, \omega)@L(s) \to ma \in s\}$
+      \State $\delta(s, f) \gets \emptyset$
+      \ForAll{$K \in [\deriv(s, f)]_\sim$}
+        \State $s' \gets \lift(K)$
+        \If{$s' \notin S$}
+          \State $L(s') \gets$ a position of a root goal of $s'$
+          \State $S \gets S \cup \{s'\}$, \Call{PushBack}{$Q$, $s'$}
+        \EndIf
+        \State $\delta(s, f) \gets \delta(s, f) \cup \{(s', \gcp(K))\}$
+      \EndFor
+    \EndFor
+  \EndWhile
+  \State \Return $(S, s_0, L, \delta, \eta)$
+\EndFunction
+\end{algorithmic}
+```
+
+## Finiteness and correctness
+
+<a id="thm-finite-automaton"></a>**Theorem 1 (finite automaton).** Every reachable state has a root goal, so its
+label is defined, and there are finitely many reachable states; hence
+Construct terminates ([EG21], Corollaries 1 and 2).
+
+<a id="thm-one-inspection-per-symbol"></a>**Theorem 2 (one inspection per symbol).** For every closed term $t$, the
+configurations reached by evaluating $M$ on $t$ form a finite tree, and
+$(s, p) \mapsto p.L(s)$ is a bijection from them to $\Dom(t)$ ([EG21],
+Corollaries 3 and 4). Every position of $t$ is inspected exactly once, also
+when the configurations are explored in parallel.
+
+<a id="thm-correctness"></a>**Theorem 3 (correctness).** For every closed term $t$,
+$\eval_M(s_0, \varepsilon, t) = \{\ell@p \in \Lpat \times \Dom(t) \mid \ell \text{ matches } t \text{ at } p\}$
+([EG21], Theorem 1).
+
+Theorems 1 to 3 are proved on paper in [EG21], with proof sketches there and the
+details in the technical report it cites; they are not formalised in Lean.
+[EG21] (Section 7) also states that evaluation takes $O(d(n + m))$ time, for
+$n$ symbols in $t$, $m$ matches and $d$ the maximal depth of a pattern, since
+reading the symbol at $p.L(s)$ takes $|L(s)|$ steps, and that the number of
+states is exponential in the worst case but at most the number of patterns for
+most of the mCRL2 data types it measures.
+
+## The construction in merc {#construction-in-merc}
+
+[`SetAutomaton::new`](https://mercorg.github.io/merc/merc_sabre/struct.SetAutomaton.html#method.new)
+follows Construct with the symbols of the rules, the machine-word operations
+that the specification evaluates natively, and one stand-in symbol under which every
+machine number is matched (see [Machine numbers](machine-numbers.md)). It
+differs from Definition 8 in how a derivative is partitioned and in the choice
+of labels.
+
+<a id="def-partition-in-merc"></a>**Definition 9 (partition in merc).** For a state $s$ and symbol $f$, merc
+partitions the goals of $\mathit{unchanged} \cup \mathit{reduced}$ into the
+classes of the transitive closure of *comparability of their announcement
+positions*; since $\varepsilon$ is comparable to every position, the goals form
+a single class as soon as one of them is a root goal. Each class $K$ is lifted
+by $\gcp(K)$ as in Definition 8. Then, for each argument $1 \le i \le \#f$, the
+fresh goals at $q = L(s).i$ join the first class with an obligation position
+comparable to $q$, lifted by the prefix of that class; if there is none, the
+transition gets the destination $(s_0, q)$.
+
+```math algorithm
+\begin{algorithmic}[1]
+\Function{Destinations}{$s, f$}
+  \State $G \gets \mathit{unchanged} \cup \mathit{reduced}$ \Comment{Definition 11, without $\mathit{fresh}$}
+  \State $K_1, \dots, K_n \gets$ the classes of $G$ under comparable announcement positions
+  \State $D \gets [(\lift(K_1), \gcp(K_1)), \dots, (\lift(K_n), \gcp(K_n))]$
+  \For{$i \gets 1, \dots, \#f$}
+    \State $q \gets L(s).i$
+    \If{some $K_j$ has an obligation position comparable to $q$, $j$ least}
+      \State add $\{\ell@q' \to \ell@q' \mid \ell \in \Lpat\}$ to $\lift(K_j)$ in $D$, where $q = \gcp(K_j).q'$
+    \Else
+      \State append $(s_0, q)$ to $D$
+    \EndIf
+  \EndFor
+  \State \Return $D$, sorted by position
+\EndFunction
+\end{algorithmic}
+```
+
+The fresh goals are grouped as in Definition 7: a fresh goal shares an
+obligation position only with a goal whose obligation is at $L(s).i$ itself. The
+remaining goals are grouped more coarsely. Two goals that share an obligation
+position have comparable announcement positions, since both are prefixes of it
+([EG21], Proposition 2), so every class of Definition 7 lies within one class
+of Definition 9, but goals with comparable announcement positions need not
+share an obligation.
+
+The label of a new state is the lexicographically least obligation position
+among its root goals. When these positions are pairwise incomparable, as they
+are in the construction of [EG21] (Proposition 2), this is the leftmost one. [EG21] (Section 7)
+observes that this choice affects the size of the automaton: for the patterns
+$t_{n+1} = f(t_n, g(\omega))$ the leftmost choice gives $n^2 + n$ states and the
+rightmost $2n$.
+
+A match announcement in merc also records how many symbols the goal has
+observed, which Sabre uses to find the configuration at which the matched
+pattern begins. It is part of a goal's identity, so two goals that differ only
+in this count give different states.
+
+<a id="conj-construction-in-merc"></a>**Conjecture 1 (construction in merc).** Theorems 1 to 3 hold for the automaton
+that SetAutomaton::new constructs with Definition 9 in place of Definition 7.
+
+This is open: the proofs of [EG21] are for the partition of Definition 7 and
+have not been redone for Definition 9. The construction does terminate for the
+machine-word encoding, for which the alternative below does not.
+
+With `apma` set, SetAutomaton::new builds an *adaptive pattern matching
+automaton* instead: every transition has one destination at $\varepsilon$ with
+all remaining goals and no fresh goals, so it finds matches at the root only.
+[`InnermostRewriter`](https://mercorg.github.io/merc/merc_sabre/struct.InnermostRewriter.html)
+and [`NaiveRewriter`](https://mercorg.github.io/merc/merc_sabre/struct.NaiveRewriter.html)
+use that variant.
+
+### Why fresh goals are compared with obligations {#why-obligation-positions}
+
+Definition 9 decides whether a fresh position joins a class by the class's
+*obligation* positions. The alternative, testing it against the class's
+*announcement* positions, does not terminate: a class with a root goal announces
+at $\varepsilon$, which is comparable to every position, so it absorbs every
+fresh subtree and a fresh copy of every rule. The resulting state never equals
+one already built, and the worklist never drains. Obligations reaching this
+test are never empty, since a goal without obligations is completed
+(Definition 6), so $\varepsilon$ appears among obligation positions only while
+a pattern is still anchored at the root.
+
+#### Example: `+` on machine-word `Pos` {#example-on-machine-word-pos}
+
+The machine-word encoding ([Machine numbers, Definition 2](machine-numbers.md#def-machine-word-encoding)) gives `Pos` addition six equations:
 
 ```
 (@most_significant_digit(w1) + @most_significant_digit(w2)) = ...;
@@ -124,17 +348,10 @@ drained, and building the automaton never returned.
 (p1 + @succ_pos(p2)) = @succ_pos((p1 + p2));
 ```
 
-The first four match on the digit mappings `@most_significant_digit`/
-`@concat_digit`, one case per combination of one-digit/multi-digit operand.
-The last two exist because, in this encoding, `Pos`'s actual *constructors*
-are `@c1` and `@succ_pos` — the digit mappings are only ever produced by
-equations, so an unreduced `@succ_pos`-headed term can still legitimately
-reach `+`, and these two equations are its home. Note their shape: each
-constrains only *one* argument (`@succ_pos(p1)`, `@succ_pos(p2)`) and leaves
-the other (`p2`, `p1`) a completely unconstrained variable.
-
-Building the automaton starts by matching the root `+` symbol, which turns
-each equation into a goal with one obligation per non-variable argument:
+The constructors of `Pos` in this encoding are `@c1` and `@succ_pos`, and the
+digit functions are mappings, so a term built with successors can still reach
+`+`; the last two equations handle it. Each constrains one argument and leaves
+the other a variable. After observing `+` at the root, the goals are:
 
 | equation | obligation at position 1 | obligation at position 2 |
 |---|---|---|
@@ -142,133 +359,28 @@ each equation into a goal with one obligation per non-variable argument:
 | chain + digit | `@concat_digit(p1,w1)` | `@most_significant_digit(w2)` |
 | digit + chain | `@most_significant_digit(w1)` | `@concat_digit(p2,w2)` |
 | chain + chain | `@concat_digit(p1,w1)` | `@concat_digit(p2,w2)` |
-| succ + * | `@succ_pos(p1)` | *(none — `p2` is a bare variable)* |
-| * + succ | *(none — `p1` is a bare variable)* | `@succ_pos(p2)` |
+| succ + * | `@succ_pos(p1)` | *(none)* |
+| * + succ | *(none)* | `@succ_pos(p2)` |
 
-All six goals still announce at `ε`, so [`partition`](https://mercorg.github.io/merc/merc_sabre/set_automaton/match_goal/struct.MatchGoal.html#method.partition)'s root special case puts
-them in one group — correct so far, the same one-time special case described
-above. Now follow one branch: the construction tries symbol `@succ_pos` at
-position 1. For the four digit-based goals this is a mismatch (discarded).
-For "succ + *" it's a complete match — `@succ_pos(p1)`'s only child is a
-variable, and that goal had no obligation at position 2 either, so the whole
-equation is *completed* right here and becomes an announcement, not a goal
-in the next state. For "* + succ" there was never an obligation at
-position 1, so it carries forward unchanged, still holding only its
-position-2 obligation.
+All six announce at $\varepsilon$. A goal such as "* + succ" stays a root goal
+while only its position-2 obligation is open, so its class keeps announcing at
+$\varepsilon$, and with the announcement test the next fresh subtree, from
+whichever rule, joins it. Every arithmetic and comparison operator on `Pos` and
+`Nat` in this encoding has such a pair of successor equations, so some class
+stays open at the root and the construction does not terminate. The binary
+encoding ([Machine numbers, Definition 1](machine-numbers.md#def-binary-encoding)) has no second representation of the same values, so
+its root goals are told apart after a few observations and the construction
+terminates with either test.
 
-The resulting state has exactly one live goal, whose sole obligation sits at
-position 2 — the group's announcement position correctly shrinks away from
-`ε`, and picking `@succ_pos` at position 2 first instead makes no
-difference by symmetry. Six equations for `+`, on their own, settle in one
-step; that's not yet a bug.
+### Order of exploration
 
-What *is* enough to get stuck is for one of these lopsided goals — one
-operand pinned, the other a bare variable, its lone obligation left sitting
-at just position 1 or just position 2 — to still be in a group the next time
-the construction discovers a fresh subtree belonging to some *other*
-equation whose own obligation happens to sit at the sibling position. The
-old code decided whether to fold that fresh subtree into an existing group
-by testing it against the group's **announcement** positions, and a group
-holding one of these lopsided goals still announces at `ε` — because the
-common-prefix computation can't produce a common prefix longer than `ε` while
-one member constrains position 1 and nothing else in that partition
-constrains position 1 at all. Since `pos_comparable(ε, anything)` is always
-`true`, such a group is a standing invitation: the next fresh subtree the
-construction meets, from whichever equation, gets folded in rather than
-started fresh, widening the group's positions again and leaving it just as
-open at `ε` for another round. Repeated across a whole specification where
-`+`, `<`, `==`, `*`, … on `Pos` and `Nat` all repeat this same "succ + *"
-shape, there is always another candidate goal ready to keep some group open
-— exactly what the fix's own comment describes: such a partition "absorbed
-every subsequent fresh subtree without bound," so the construction's
-worklist never drained.
-
-### Why this doesn't happen with the ordinary binary rules
-
-The `Binary` encoding's `Pos` addition — `@addc` in the bundled `pos.mcrl2`
-template — has equations with the same superficial shape (`@addc(false,@c1,p) = succ(p)`
-leaves `p` unconstrained, just like `@succ_pos(p1) + p2` does above), so a
-transient `ε`-glued group can form there too. What it doesn't have is a
-*second* representation to keep re-triggering that shape. `Pos`'s
-constructors in `Binary` mode are `@c1` and `@cDub` — the same pair every
-equation is written against, with no generic-constructor counterpart layered
-on top: `succ` is only ever a plain mapping, fully defined by its own closed
-equations over `@cDub`, and it never appears as an argument pattern inside
-`+`'s own left-hand sides. So once `@addc`'s handful of equations have been
-told apart, every surviving goal ends up needing the same one remaining
-position, the group's announcement position shrinks for good, and it stops
-being a magnet for unrelated subtrees.
-
-`Pos` (and `Nat`) under `MachineWord`, by contrast, keep `@succ_pos`
-(`@succ_nat`) as a real constructor *alongside* the digit mappings precisely
-so that a not-yet-normalized term built the generic way still has somewhere
-to go — which means **every** arithmetic and comparison operator on these
-sorts (`+`, `<`, `==`, `*`, …) needs its own "succ + *" / "* + succ" pair the
-way `+` does above. With one shared automaton covering the whole
-specification, one persistently `ε`-anchored group anywhere is enough:
-"absorbed every subsequent fresh subtree without bound," as the fix's own
-comment puts it, is exactly what happens when the merge test can't tell a
-group that has genuinely settled from one that's still open at the root.
-
-The fix swaps the test to use each group's remaining **obligation**
-positions instead:
-
-```rust
-for goal in &group {
-    for obligation in &goal.obligations {
-        obligation_positions.push(obligation.position.clone());
-    }
-}
-```
-
-This is sound where the announcement-position version wasn't, because
-obligations reaching this point are never empty by construction — a goal
-with no obligations left is classified as *completed* and diverted to the
-transition's announcements before this code ever sees it (the derivative
-computation asserts exactly this). So `ε` only turns up among
-obligation positions when a rule's pattern is *genuinely* still anchored at
-the root — real, load-bearing overlap — never as a leftover from a rule that
-was simply matched once, long ago, and never revisited. A fresh subtree now
-only joins a group when one of that group's still-open obligations actually
-sits under (or over) it.
-
-Note that this is a deviation from the original construction, which merges on
-announcement positions (and `MatchGoal::partition` itself still groups goals
-that way), not a restoration of it.
-
-## Effect on rewriting order
-
-The fix is not purely a termination fix: it also changes the shape of the
-automaton and the order in which Sabre inspects subterms.
-
-Every obligation of a goal sits at or below that goal's announcement position.
-If a fresh position is comparable to an obligation position it is therefore
-also comparable to the announcement position, so the obligation test only
-ever *splits off* fresh positions that the announcement test would have
-merged; it never merges anything new. The split-off case is a fresh position
-that lies below an announcement position but beside all remaining obligations,
-for example under a variable argument of the pattern. Such a position becomes
-a separate hypertransition destination to the initial state, so the automaton
-has more, smaller states.
-
-Sabre explores the destinations of a hypertransition depth first in sorted
-position order: `ConfigurationStack::grow` follows the first destination and
-pushes the remainder as a side branch. This determines which redex is found,
-and applied, first.
-
-- **Root matches still take priority.** A state's label is chosen from its
-  root-anchored goals only (`State::new`), so in the old merged state the
-  fresh goals were not inspected while a root goal was alive. In the new
-  version the group's greatest common prefix is a prefix of the split-off
-  position, so the group sorts, and is explored, first. In both cases the
-  root is matched before the split-off subterm is visited.
-- **Sibling order changes once the root goals fail.** Previously the fresh
-  goals were re-partitioned together with the other fresh subtrees and visited
-  in position order. Now the split-off subtree is only visited after the entire
-  group branch has been explored.
-
-This can go either way. Consider the rule `f(y, g(x)) = x` applied to
-`f(t1, h(...))` where `h(...)` rewrites to a `g`-term. The new construction
-explores argument 2 first, whereas the old construction visits `t1` first even
-though the rule discards it; here the new order is lazier. Whether there are
-cases where it is measurably less lazy has not been determined yet.
+Sabre explores the destinations of a transition depth first, in sorted position
+order: it follows the first and keeps the others as a side branch, which
+determines which redex it finds, and rewrites, first. A state's label is chosen
+among its root goals, and a class's prefix sorts before a position that was
+split off from it, so the root is matched before a split-off subterm is
+visited. Compared with the announcement test, a split-off subterm is visited
+only after the whole branch of its class; for the rule `f(y, g(x)) = x` applied
+to `f(t1, h(...))`, where `h(...)` rewrites to a `g`-term, this explores the
+second argument before `t1`, which the rule discards. Whether the order is
+measurably less lazy in other cases has not been determined.

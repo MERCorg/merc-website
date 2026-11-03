@@ -4,9 +4,9 @@ Checking the conditions of a conditional rewrite rule (Definition 3) can
 normalise the same term many times. This page defines the condition cache that
 both [`SabreRewriter`](https://mercorg.github.io/merc/merc_sabre/)
 and `InnermostRewriter`
-use against this (Definition 11), and what it does and does not catch.
+use against this (Definition 17), and what it does and does not catch.
 
-**Definition 11 (condition cache).** A *condition cache* is a map, bounded in size
+**Definition 17 (condition cache).** A *condition cache* is a map, bounded in size
 and evicting the least recently used entry, from the instance $u\sigma$ of a
 condition side to its normal form. It is filled while rewriting, and consulted
 whenever a condition side is normalised.
