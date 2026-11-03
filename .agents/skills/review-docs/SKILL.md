@@ -59,6 +59,12 @@ neighbours are not.
   doc-gen4 site `mercorg.github.io/merc-verified` are findings while it is
   unpublished (they fail CI's link check). No links into
   `verified-machine-numbers`, which is not published.
+- A public Rust item or Lean declaration named in backticks without a
+  link anywhere on the page is a finding: CI's `lychee` check only catches
+  renames through links (CI runs it with `--include-fragments`, so anchors
+  and `#method.name` fragments are checked as well).
+- Links to Rust source files on GitHub, and names of private items, are
+  findings.
 - Do not try to fetch external URLs; check structure and the local
   checkouts only.
 

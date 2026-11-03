@@ -50,7 +50,7 @@ modules, plugins or LaTeX binaries, run the setup steps of the
    link-check step in `.github/workflows/doc.yml`:
 
    ```bash
-   command -v lychee >/dev/null && lychee --no-progress --max-retries 3 --retry-wait-time 5 ./docs
+   command -v lychee >/dev/null && lychee --no-progress --max-retries 3 --retry-wait-time 5 --include-fragments ./docs
    ```
 
    If `lychee` isn't installed, skip this step and say so explicitly rather

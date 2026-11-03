@@ -101,15 +101,28 @@ When describing how the code implements the mathematics:
 
 ## 5. Formatting and links
 
+Every public Rust item and every Lean declaration a page names is linked, at
+least at its first mention on the page. CI's `lychee` check fails on a link
+whose target was renamed, moved or removed, whereas a bare name in backticks
+goes stale silently, so a link is what keeps the page honest. Before linking
+a Rust item, check that its crate is in the published rustdoc
+(`https://mercorg.github.io/merc/`); if it is not yet, tell the user rather
+than dropping the link.
+
 - **Rust items** link to rustdoc, link text in backticks, the last segment of
   the text matching the item in the URL:
   - items: `` [`Item`](https://mercorg.github.io/merc/<crate>/<module/path>/<kind>.Item.html) ``
     where `<kind>` is `struct`, `enum`, `trait`, `fn`, `type`, `macro`, ...
   - crates and modules: `` [`name`](https://mercorg.github.io/merc/<crate>/<module/path>/index.html) ``
 
+  - methods and associated items: through their type's page,
+    `` [`relabel`](https://mercorg.github.io/merc/<crate>/<path>/struct.Type.html#method.relabel) ``.
+    CI runs `lychee --include-fragments`, so the `#method.name` fragment is
+    checked too.
+
   Derive `<crate>` (with underscores, e.g. `merc_vpg`) and the module path
   from `../merc` — a re-exported item lives under the path it is re-exported
-  at.
+  at. Do not link source files on GitHub.
 - **Lean declarations** link to their spec file on GitHub, link text the
   declaration name in backticks:
   `` [`Name`](https://github.com/MERCorg/merc-verified/blob/main/<path>.lean) ``.

@@ -75,6 +75,8 @@ The `write-docs` skill has the full conventions; the essentials:
   Numbering runs across the pages of a section; reuse it exactly.
 - State the proof status of every theorem: proved in Lean (with the
   declaration name), proved on paper, or open.
+- Every public Rust item and Lean declaration a page names is linked, at
+  least at its first mention: `lychee` catches a stale link, not a stale name.
 - Rust items link to rustdoc:
   `` [`Item`](https://mercorg.github.io/merc/<crate>/<path>/<kind>.Item.html) ``.
 - Lean claims link to their spec file:
