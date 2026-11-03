@@ -1,141 +1,99 @@
-# Type Variables & Polymorphic Schemes
+# Type variables and polymorphic schemes
 
-[The System-Defined Specification](system-specification.md#the-polymorphic-signature)
-explains *why* the container/function-update operations and the comparison
-operators/`if` are typed as schemes rather than instantiated concretely for
-every sort. This page covers the mechanics: how a scheme's own bound
-variables are declared and resolved, how they end up in the
-[sort lattice](sort-inference.md#the-sort-lattice), and how a scheme is
-instantiated fresh at each use site.
+[The system-defined specification](system-specification.md) explains why the
+comparison operators, `if`, the container operations and function update are
+typed as polymorphic schemes. This page defines schemes and their instances, and
+states why the equations of a template need to be checked only once. It assumes
+the definitions of the preceding pages, from
+[Sort and name resolution](name-resolution.md) to
+[The system-defined specification](system-specification.md).
 
-## The `type_var` block
+## Type variables
 
-A scheme's bound sort variables are declared the same way an equation's
-variables are declared in a `var` block, just for sorts: a `type_var S;`
-block, parsed by the same grammar as any other specification section
-([`TypeVarSpec`](https://mercorg.github.io/merc/merc_syntax/parse/enum.Rule.html#variant.TypeVarSpec)). Type-variable resolution runs early in the construction of a
-[`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html) — right after equation-variable resolution and struct
-hoisting, before ordinary sort-name resolution — and does two things: it
-assigns each `type_var` declaration a [`TypeVarId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.TypeVarId.html) (a [`TagIndex`](https://mercorg.github.io/merc/merc_utilities/tagged_index/struct.TagIndex.html)-based id,
-numbered from zero per specification, like [`VarId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.VarId.html) and [`SortId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.SortId.html)), and it
-rewrites every [`SortExpressionKind::TypeVar(name)`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.TypeVar) reference
-in the specification to [`ResolvedTypeVar(TypeVarId)`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.ResolvedTypeVar), the same
-[`Reference`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Reference)-to-[`Resolved`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Resolved) shape ordinary sort resolution uses. A name that
-matches no `type_var` declaration is a [`WellTypedError::UndefinedTypeVar`](https://mercorg.github.io/merc/merc_typecheck/signature/is_well_typed/enum.WellTypedError.html#variant.UndefinedTypeVar); a
-`type_var` block declaring the same name twice is a
-[`WellTypedError::DuplicateTypeVarDeclaration`](https://mercorg.github.io/merc/merc_typecheck/signature/is_well_typed/enum.WellTypedError.html#variant.DuplicateTypeVarDeclaration).
+A *template* is a piece of mCRL2 text that declares polymorphic operations and
+their defining equations, such as the bundled `list.mcrl2`, `set.mcrl2`,
+`fset.mcrl2`, `bag.mcrl2`, `fbag.mcrl2` and `comparison.mcrl2`. A template
+declares its sort variables in a `type_var` block, the way a `var` block declares
+data variables:
 
-The built-in templates all declare their own `type_var` block now:
-[`BUILTIN_SCHEME_TEMPLATE`](https://mercorg.github.io/merc/merc_typecheck/signature/standard_sorts/static.BUILTIN_SCHEME_TEMPLATE.html) (the `==`, `!=`, `<`, `<=`, `>`, `>=`, `less_total`,
-`if` scheme, bundled from `comparison.mcrl2` and loaded in
-`standard_sorts.rs`) opens with `type_var S;`, and each bundled
-container template (`list.mcrl2`, `set.mcrl2`, `fset.mcrl2`, `bag.mcrl2`,
-`fbag.mcrl2`) declares its own `S`/`T` the same way,
-rather than leaving them as bare, unresolved sort references for later code
-to match by name. Both go through one shared entry point, which parses the
-template text and immediately resolves its type variables, so a template is
-never seen with a dangling [`TypeVar`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.TypeVar) node.
-Function-update has no bundled template file of its own: its scheme is
-generated programmatically, per arity, the first time that arity is
-encountered at a call site — see below.
+```mcrl2
+type_var S;
+map in: S # List(S) -> Bool;
+```
 
-## `ResolvedSort::TypeVar` and `PolySortScheme`
+Type-variable resolution runs early, before sort names are resolved (see the
+[pipeline](index.md#architecture)). It assigns every `type_var` declaration a
+*type-variable identifier* and replaces every reference to it by that identifier,
+just as [Sort and name resolution, Definition 2](name-resolution.md#def-sort-name-resolution) does for sort names. A reference to an undeclared type
+variable, and a `type_var` block that declares a name twice, are rejected. Every
+template is resolved immediately after it is parsed, so no later pass sees an
+unresolved type variable.
 
-A [`ResolvedTypeVar(id)`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.ResolvedTypeVar) sort expression resolves through the ordinary
-sort-resolution path — the same one every other sort expression takes — onto a
-dedicated lattice member, [`ResolvedSort::TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar)([`TypeVarId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.TypeVarId.html)). This is what lets a
-template's declaration be resolved and interned exactly like a concrete
-declaration: `map in: S # List(S) -> Bool;` resolves to one [`ResolvedSortId`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/type.ResolvedSortId.html)
-whose structure is `TypeVar(s) # List(TypeVar(s)) -> Bool` (each [`TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar) node
-the same lattice member) for a single [`TypeVarId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.TypeVarId.html)
-`s`, shared between both occurrences of `S`.
+User specifications do not declare type variables; `type_var` blocks only occur
+in templates.
 
-Every constructor and mapping declaration in a set of templates is collected
-into one [`PolySortScheme`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html) per declaration — `{ sort: ResolvedSortId }`, a single
-field holding the already-interned, already-resolved sort — keyed by name into
-a [`HashMap`](https://doc.rust-lang.org/std/collections/struct.HashMap.html) from name to a [`Vec`](https://doc.rust-lang.org/std/vec/struct.Vec.html) of [`PolySortScheme`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html)s. There is no separate field listing a
-scheme's bound variables: a scheme's `sort` is walked structurally at
-instantiation time (see below), and every [`TypeVar(id)`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar) node it contains
-*is* the set of variables that need a fresh unification variable, discovered
-on the fly rather than precomputed and stored. [`Signature`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html) carries the
-scheme table as a [`schemes`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html#structfield.schemes) field
-alongside [`constructors`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html#structfield.constructors)/[`mappings`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html#structfield.mappings), so a name lookup against a signature has
-exactly one place to look, not a separate polymorphic table on the side:
+## Schemes and instances {#schemes-and-instances}
 
-- **The user-facing signature** ([`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature)) gets [`schemes`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.Signature.html#structfield.schemes) from the
-  five container templates (`list`, `set`, `fset`, `bag`, `fbag`) chained with
-  [`BUILTIN_SCHEME_TEMPLATE`](https://mercorg.github.io/merc/merc_typecheck/signature/standard_sorts/static.BUILTIN_SCHEME_TEMPLATE.html) — six *sources* in total. A
-  user specification's own declarations never carry a `type_var` block in
-  current usage, so this only ever *adds* names to the signature rather than
-  colliding with anything the user wrote.
-- **Function-update is not part of this initial build at all.** It has no
-  bundled template file, and no fixed arity to declare a scheme for ahead of
-  time. Instead, the first time a given arity is encountered at a call site,
-  [`typecheck_function_update_template`](https://mercorg.github.io/merc/merc_typecheck/signature/standard_sorts/fn.typecheck_function_update_template.html) generates that arity's template text
-  programmatically, [type-checks it once](#checking-a-templates-equations-once-rigidly)
-  like the bundled templates, and merges its one new scheme permanently into
-  [`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature) so later call sites of the same arity reuse it.
-- Every role — checking the user's own equations, `system`'s basics and
-  desugared-struct equations, and a template's own equations — shares the
-  same one pooled [`ctx.signature`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.signature) and the same unfiltered candidate set; see
-  [`EquationRole`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/enum.EquationRole.html)'s own doc comment and [the name-resolution
-  table](system-specification.md#name-resolution-inside-a-system-equation).
-  What differs between roles is only where a binder/equation-variable's sort
-  is resolved from, and which spec an [`EqnSpecId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.EqnSpecId.html) indexes into — there is no
-  separate, narrower scheme table for any one role.
+<a id="def-scheme"></a>**Definition 1 (scheme).** A *scheme* $\forall \alpha_1 \ldots \alpha_k.\ s$ is a
+sort $s$ in which the type variables $\alpha_1, \ldots, \alpha_k$ may occur, at
+any depth. Every constructor and mapping declaration of a template is a scheme,
+which binds the type variables that occur in its sort.
 
-## Checking a template's equations once, rigidly
+A type variable is a member of the [sort lattice](sort-inference.md#the-subsort-order),
+resolved and interned like any other sort, so `in: S # List(S) -> Bool` is one
+interned sort in which both occurrences of `S` are the same type variable. A
+scheme is stored as just that sort: its bound variables are not stored
+separately, but are the type variables that occur in it.
 
-A template's own defining equations (`bag.mcrl2`'s `@zero_ == @one_`, and the
-rest) are checked exactly once per template, not once per instantiation:
-Phase-3 inference runs over them with the template's `type_var`-declared
-sort(s) held **rigid** — a skolem constant rather than a unification variable
-— and the result, a [`TemplateCheck { type_vars, typings }`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html), is memoized on the
-checking context. This happens unconditionally while a
-[`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html) is built, regardless of whether the specification
-being checked ever uses a container at all.
+<a id="def-instance"></a>**Definition 2 (instance).** An *instance* of a scheme $\forall \bar\alpha.\ s$
+at one occurrence of its name is $s[\bar\alpha := \bar h]$, where $\bar h$ are
+fresh holes ([The Unifier, Definition 1](inference/unification.md#def-sorts-with-holes)), one per type variable.
 
-Rigidity is what makes checking once sound, the same "generalize, then
-instantiate fresh at each use" discipline let-polymorphism relies on: proving
-an equation holds for an arbitrary, unconstrained `S` entails it holds for
-every particular `S` a caller later substitutes, so `@zero_ == @one_` need
-never be checked again for `Bag(Nat)`, `Bag(D)`, or any other concrete
-instantiation. A user specification using several different container
-element sorts pays this cost exactly once per template, not once per element
-sort.
+Within one instance, all occurrences of a type variable become the same hole, so
+in `in: S # List(S) -> Bool` the element and the list agree on `S`. Different
+occurrences of `in`, also in the same equation, get different holes, so they
+are independent.
 
-[`type_vars`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html#structfield.type_vars) here is collected directly from the template's
-own `type_var` declarations. [`PolySortScheme`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html) itself carries no equivalent
-list — it stores only the scheme's interned [`sort`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html#structfield.sort) — since instantiation
-never needs a scheme's bound variables as precomputed data; it discovers them
-structurally by walking [`sort`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html#structfield.sort) and collecting every [`TypeVar`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar) node it finds.
-Specialization uses [`TemplateCheck.type_vars`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/struct.TemplateCheck.html#structfield.type_vars), together with the concrete sorts
-each
-[`TemplateInstantiation`](../rewriting/lowering.md#materializing-ground-content-at-lowering-time)
-records, to turn that one proven typing into the typing of a concrete
-instantiation by substitution instead of re-inference; see [Materializing
-ground content at lowering
-time](../rewriting/lowering.md#materializing-ground-content-at-lowering-time) for where
-that half runs.
+The schemes of the signature ([Signature and well-typedness, Definition 1](signature.md#def-signature)) come from the five container
+templates and the comparison template, and from one function-update template per
+arity. A function-update template has no bundled file: its text is generated for
+each arity that the specification uses (and for arity one), while the
+specification is type checked.
 
-## Instantiating a scheme
+## Checking a template once {#checking-a-template-once}
 
-Instantiation turns a [`PolySortScheme`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html)'s already-interned [`sort`](https://mercorg.github.io/merc/merc_typecheck/signature/signature/struct.PolySortScheme.html#structfield.sort) into a fresh
-sort node for one occurrence: it walks the [`ResolvedSort`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html) structurally, and
-every [`TypeVar(id)`](https://mercorg.github.io/merc/merc_typecheck/inference/resolved_sort/enum.ResolvedSort.html#variant.TypeVar) it reaches becomes one fresh
-unification variable, memoized in a local [`HashMap`](https://doc.rust-lang.org/std/collections/struct.HashMap.html) from [`TypeVarId`](https://mercorg.github.io/merc/merc_syntax/syntax_tree/type.TypeVarId.html) to [`InferSortId`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/type.InferSortId.html)
-so two occurrences of the same `id` within *this one instantiation* share the
-same variable — the mechanism that makes `S` mean "the same `S`" on both
-sides of `in: S # List(S) -> Bool`. Every occurrence gets a fresh [`HashMap`](https://doc.rust-lang.org/std/collections/struct.HashMap.html),
-so two occurrences of `in` in the same equation never share a variable with
-each other.
+The defining equations of a template, such as `@zero_ == @one_` in
+`bag.mcrl2`, are checked once per template, and not once per instance. They are
+checked by [sort inference](sort-inference.md) with the template's type
+variables *rigid*: a type variable is treated as a sort constant that unifies
+only with itself, and not as a hole.
 
-## Real declaration spans for system-defined symbols
+<a id="thm-checking-a-template-once"></a>**Theorem 1 (checking a template once).** If the equations of a template are
+well-typed with its type variables $\bar\alpha$ rigid, then for every
+substitution $\bar\alpha := \bar s$ of sorts, the instantiated equations are
+well-typed, with the typing obtained by applying the same substitution to the
+typing of the template.
 
-The bundled template files are registered into the shared [`SourceMap`](https://mercorg.github.io/merc/merc_utilities/source_map/struct.SourceMap.html) as
-virtual documents (e.g. `<builtin>/list.mcrl2`), the same offsetting technique
-[`%import` resolution](../parsing/source_map.md) uses (see [Loading system-defined content into the source map](system-specification.md#loading-system-defined-content-into-the-source-map)). This is what lets the checking
-context's table of system symbol spans ([`system_symbol_spans`](https://mercorg.github.io/merc/merc_typecheck/inference/context/struct.TypeCheckContext.html#structfield.system_symbol_spans)) — and so
-[`ResolvedName::SystemDefined`](https://mercorg.github.io/merc/merc_typecheck/typing_info/enum.ResolvedName.html#variant.SystemDefined)'s [`declaration`](https://mercorg.github.io/merc/merc_typecheck/typing_info/enum.ResolvedName.html#variant.SystemDefined.field.declaration) (see [typing info](typing-info.md)) — carry a real,
-renderable span for a system-defined constructor or mapping (`[]: List(S)`,
-`in`, …) instead of an empty placeholder span.
+*Proof idea.* This is the substitution lemma behind let-polymorphism: a
+derivation that treats $\alpha$ as an unknown constant uses no property of it,
+so replacing $\alpha$ by $s$ throughout yields a derivation for $s$. It is not
+formalised in Lean.
+
+So `@zero_ == @one_` is never checked again for `Bag(Nat)` or `Bag(D)`. A
+specification that uses several element sorts pays for checking each template
+once. The result of checking a template, its type variables and the typing of
+each equation, is kept on the checking context. At
+[lowering](../rewriting/lowering.md#materializing-ground-content-at-lowering-time),
+every ground instance is typed by substitution into it, instead of by inference.
+
+All templates are checked while a
+[`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/)
+is built, also when the specification uses no container.
+
+## Source locations
+
+The ground instances that lowering generates from a template are registered in
+the shared [source map](../parsing/source_map.md) as virtual documents, such as
+`<builtin>/list.mcrl2`. The template text that the schemes themselves are built
+from is not registered, so a use of a polymorphic operation has no declaration
+location; see [Source locations](system-specification.md#source-locations).

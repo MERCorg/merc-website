@@ -63,3 +63,9 @@
 .latex-math-block--algorithm {
   justify-content: flex-start;
 }
+
+/* Scale algorithms down to the page width instead of scrolling. */
+.latex-math-block--algorithm svg {
+  max-width: 100%;
+  height: auto;
+}

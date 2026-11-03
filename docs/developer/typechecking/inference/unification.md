@@ -1,16 +1,23 @@
 ```math_preamble
 
 \usepackage{algpseudocode}
+\algrenewcommand{\algorithmiccomment}[1]{$\triangleright$ #1}
 ```
 # The Unifier
 
-[`Unifier`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/struct.Unifier.html) (`crates/typecheck/src/inference/unification.rs`) solves sort
-equality by structural unification over a union-find table, backed by
+The unifier of [sort inference](../sort-inference.md) solves sort equality by structural unification over a union-find table, backed by
 [`ena`](https://crates.io/crates/ena) — the same crate the Rust compiler's own
 type inference uses. It is a single-purpose component: given two sort
 expressions that may still contain holes, decide whether they can be made
-equal, and if so, make them so. It has no notion of equations, overloads, or
-ranking — that all lives one level up, in [the solver](solver.md).
+equal, and if so, make them so. It has no notion of equations, overloads,
+subtyping or ranking — that all lives one level up, in [the ranked
+backtracking search](ranked-backtracking.md) and in [sort
+inference](../sort-inference.md).
+
+Apart from the concrete term shapes below, nothing here is specific to sorts:
+it is standard first-order unification over a term algebra whose leaves may
+be holes, extended with snapshot and rollback so a backtracking search can
+try a binding and undo it.
 
 ## Data model
 
@@ -31,27 +38,37 @@ InferSort =
 
 There are two distinct identities in play, easy to conflate:
 
-- an [`InferSortId`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/type.InferSortId.html) is just "a node in the arena" — **structural**, not
+- an `InferSortId` is just "a node in the arena" — **structural**, not
   deduplicated. Two different ids can denote the same sort (e.g. two
-  occurrences of `List(?t)` built independently), and only [`unify`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/struct.Unifier.html#method.unify) decides
+  occurrences of `List(?t)` built independently), and only `unify` decides
   whether they are semantically equal.
-- a [`SortVar`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/struct.SortVar.html) is a union-find key. It is what [`InferSort::Var`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/enum.InferSort.html#variant.Var) wraps, and
-  it is the only thing [`snapshot`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/struct.Unifier.html#method.snapshot)/[`rollback_to`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/struct.Unifier.html#method.rollback_to) checkpoint.
+- a `SortVar` is a union-find key. It is what a `Var` node wraps, and it is the
+  only thing `snapshot`/`rollback_to` checkpoint.
 
 `resolved_node` memoizes `Resolved(id) -> InferSortId` in a side table, so
 repeated references to the same already-known sort (e.g. re-fetching `Nat`
 for every argument of `+`) share one arena node rather than allocating a
 fresh one each time.
 
+<a id="def-sorts-with-holes"></a>**Definition 1 (sorts with holes).** A *sort with holes* is a term built from
+resolved sorts ([Sort inference, Definition 1](../sort-inference.md#def-sorts-and-subsorts)), container heads $op(\cdot)$ and function sorts
+$\cdot \# \dots \# \cdot \to \cdot$, whose leaves may be *holes*: sort
+variables still to be determined. An *assignment* maps holes to sorts with holes;
+it *unifies* two sorts with holes if applying it to both gives the same term.
+
+A resolved sort counts as the ground term it denotes, so `List(?t)` and the
+resolved `List(Nat)` are unified by $?t := \mathit{Nat}$. A rigid type variable
+([Type variables and polymorphic schemes, Definition 1](../polymorphism.md#def-scheme), [Type variables and polymorphic schemes, Theorem 1](../polymorphism.md#thm-checking-a-template-once)) is a constant, not a hole.
+
 ## Unification
 
 Unification decides whether two sort nodes *could* denote the same sort, and
-if so commits to that by binding whatever variables stand in the way. The
+if so commits to that by binding whatever holes stand in the way. The
 underlying rule is the standard one for structural unification over a term
-algebra with variables: a variable unifies with anything (binding itself to
+algebra with variables (here, holes): a variable unifies with anything (binding itself to
 it, after an occurs check), and two non-variable terms unify only if they
 have the same head constructor, recursively unifying their corresponding
-arguments. What is specific to this checker is *where* the variables can
+arguments. What is specific to this checker is *where* the holes can
 hide — inside a union-find table rather than only at the leaves — which is
 exactly what `shallow_normalize` accounts for below.
 
@@ -64,7 +81,7 @@ another `Var` in the same equation was later bound through. Before `unify`
 indirection to whatever it currently resolves to — the same "find" step any
 union-find structure needs before comparing two elements.
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{ShallowNormalize}{$id$}
   \While{$\mathit{arena}[id] = \Call{Var}{v}$ and $\mathit{table}$ binds $v$ to $\mathit{next}$}
@@ -95,9 +112,9 @@ returns `Nat`'s node — in one step, regardless of how many variables were
 chained together to get there. Called again on that same result, it is a
 no-op: `Nat`'s node is not a `Var`, so the loop never starts.
 
-### The algorithm
+### The algorithm {#the-algorithm}
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{Unify}{$lhs, rhs$}
   \State $lhs \gets \Call{ShallowNormalize}{lhs}$
@@ -129,7 +146,7 @@ no-op: `Nat`'s node is not a `Var`, so the loop never starts.
 \end{algorithmic}
 ```
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{Bind}{$v, \mathit{value}$}
   \If{$\Call{Occurs}{v, \mathit{value}}$}
@@ -147,9 +164,9 @@ either side being the `Var`, the `Resolved`, or the `Generic`/`Function`
 `Unify(b, a)` normalize, compare, and bind identically — argument order never
 changes whether two sorts unify or what they end up bound to. That is by
 design: `unify` only ever answers "are these equal," and equality has no
-direction. The strict-subsort ordering further down this page is where
-direction *does* matter, and for an unrelated reason — see
-[the subsort lattice](#the-subsort-lattice) below.
+direction. The sub-sort ordering is where direction *does* matter, and it is
+deliberately kept out of the unifier — see [Ordering is not
+unification](#ordering-is-not-unification) below.
 
 **Example.** Typing an empty list literal `#[]` against an expected sort
 `List(Pos)` compares the resolved leaf `List(Pos)` against the literal's
@@ -168,7 +185,7 @@ Unify(Resolved(List(Pos)), Generic{List, ?t})
 
 Two things make this cheaper than a naive structural unifier:
 
-- **Interning collapses the base case.** Two [`Resolved`](https://mercorg.github.io/merc/merc_typecheck/inference/unification/enum.InferSort.html#variant.Resolved) leaves unify by
+- **Interning collapses the base case.** Two `Resolved` leaves unify by
   comparing their interned ids — no recursion needed even for a deeply
   nested sort, as long as neither side still has a hole in it.
 - **A resolved sort unifies directly against a spelled-out one.** A
@@ -177,21 +194,28 @@ Two things make this cheaper than a naive structural unifier:
   interner and unifying `?t` against it — the resolved side never needs to be
   "expanded" into its own arena nodes up front.
 
-`unify_values` (the [`UnifyValue`](https://docs.rs/ena/latest/ena/unify/trait.UnifyValue.html) impl backing `bind`'s merge) asserts that at
-most one side of a merge is ever already bound — `unify`'s `(Var, Var)` arm
-only merges two variables while *both* are still unbound, since two already-
-bound classes are unified **structurally** first (recursing into their
-values), never merged wholesale. That is what makes transitive merging safe:
-`?a = ?b` merges two holes; a later `?b := Bool` binds the merged class, and
-resolving `?a` afterwards follows the merge to find `Bool`.
+The union-find table only ever merges two classes while both are still
+unbound: two bound classes are unified structurally, by recursing into their
+values, and never merged wholesale. That is what makes transitive merging safe:
+`?a = ?b` merges two holes, a later `?b := Bool` binds the merged class, and
+resolving `?a` afterwards finds `Bool`.
 
-### The occurs check
+<a id="thm-unification"></a>**Theorem 1 (unification).** `Unify(a, b)` succeeds if and only if some
+assignment unifies $a$ and $b$, and on success the bindings it adds are a most
+general such assignment. `Unify` is symmetric in its arguments, and the occurs
+check guarantees that every bound hole resolves to a finite term.
+
+*Proof idea.* This is standard first-order unification with an occurs check
+(Robinson, 1965), over the term algebra of Definition 1; union-find only changes
+how the assignment is represented. It is not formalised in Lean.
+
+### The occurs check {#the-occurs-check}
 
 `Bind` refuses a binding that would create an infinite sort — the standard
 occurs check for a unifier with structural terms, walking the same shape
 `Unify` itself recurses over:
 
-```math
+```math algorithm
 \begin{algorithmic}[1]
 \Function{Occurs}{$v, id$}
   \State $id \gets \Call{ShallowNormalize}{id}$
@@ -227,7 +251,7 @@ and `?alias` share a class — even though nothing points from `?alias` back to
 *classes* rather than node identity: a cycle introduced indirectly, through a
 prior merge, is just as infinite a sort as a direct self-reference.
 
-## Resolving a solved node
+## Resolving a solved node {#resolving-a-solved-node}
 
 ```
 resolve(id):                              -- None if a hole remains anywhere inside
@@ -244,62 +268,20 @@ for a `Var` instead of failing. It exists because a leaf of the solver's
 search can legitimately leave a hole unconstrained — the element sort of `#[]`
 in an equation that never observes the empty list's contents, for instance —
 and such an equation should still type check rather than be rejected as
-underdetermined. What `default` actually is isn't fixed inside the `Unifier`;
-it is computed once per equation by
-[`underdetermined_default_sort`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/fn.underdetermined_default_sort.html) and threaded in — see
-[the solver page](solver.md#scoring-and-extracting-leaf-extract) for when and why it
-differs from the usual `Bool`.
+underdetermined. What `default` is, is decided by the caller, not the
+`Unifier`; for sort inference see [Underdetermined
+defaults](../sort-inference.md#underdetermined-defaults).
 
-## The subsort lattice
+## Ordering is not unification {#ordering-is-not-unification}
 
-Unification only ever decides **equality**. The strict-subsort ordering
-(`Pos <: Nat <: Int <: Real`, `FSet <: Set`, `FBag <: Bag`) is exposed
-separately, as an enumeration the solver walks explicitly when a plain
-equality does not hold:
-
-```
-strict_super_sorts(id):    -- None for a still-unbound Var, whose shape isn't known yet
-    match arena[normalize(id)]:
-        Resolved(Primitive(s)) -> the number sorts strictly above s, nearest first
-                                    (e.g. Pos -> [Nat, Int, Real])
-        Resolved(Container{op, sub}) -> [the wider constructor applied to sub], if op has one
-                                          (e.g. FSet(x) -> [Set(x)])
-        Generic{op, sub}        -> same container widening, without resolving sub
-        Function                -> []                                    -- functions never widen
-        _                       -> []
-
-strict_sub_sorts(id): the mirror image (Real -> [Int, Nat, Pos], Set(x) -> [FSet(x)])
-```
-
-Only the **head constructor** widens through this enumeration: `Nat` yields
-several entries, `List(Nat)` yields none. That is not because `List(Nat)` has
-no supersorts at all — container-element covariance makes `List(Nat) <:
-List(Int)` a genuine relation in the full sub-sort lattice (see [the sort
-lattice](../sort-inference.md#the-sort-lattice)) — but this function only
-ever widens the numeric chain and the finite/infinite container pairing, and
-neither reaches inside a container's element; the covariant step exists but
-isn't one of the coercions lowering can materialize (again, see the lattice
-page), so it is never offered as a candidate here. This is exactly
-`number_generality`'s table
-(`Pos = 0, Nat = 1, Int = 2, Real = 3`) read in each direction, plus the two
-hard-coded container pairs (`FSet <: Set`, `FBag <: Bag`).
-
-Unlike `unify`, this ordering is **not** symmetric — `strict_super_sorts` and
-`strict_sub_sorts` answer different questions (what sits above `id`, versus
-what sits below it), matching `<:` itself being directional (`Pos <: Nat`
-holds, `Nat <: Pos` doesn't). A [`Sub`](solver.md#the-solver) constraint's
-`lhs` and `rhs` inherit that same directionality and are not interchangeable
-for it: `Sub { lhs, rhs }` means "`lhs` must be a subsort of `rhs`," so
-swapping them asks a different question, not the same one twice.
-[`solve_widening`](solver.md#subsorting-solve_sub-solve_widening) is built
-around exactly this asymmetry — it enumerates `strict_super_sorts(lhs)`
-first (widening `lhs` upward toward `rhs`), falling back to
-`strict_sub_sorts(rhs)` (narrowing `rhs` downward toward `lhs`) only when
-`lhs`'s own shape isn't concrete enough to enumerate from. None of this
-reaches into `unify` itself, which stays a pure, order-independent equality
-check throughout — the directionality lives entirely in the solver's choice
-of *which* pair to try unifying next, never in what `unify` does with the
-pair it's given.
+Unification only ever decides **equality**; it never widens `Nat` into `Int`.
+A sub-sort ordering is layered on top by the client: the `Unifier` offers
+`strict_super_sorts`/`strict_sub_sorts` to enumerate the neighbours of a node,
+and the solver tries unifying against each of them in turn. Which neighbours
+exist, and in what order, is a property of the sort lattice, described in
+[Widening over the lattice](../sort-inference.md#coercions).
+This keeps `unify` simple, total and order-independent, and confines every
+coercion decision to the search, where it can be scored.
 
 ## Snapshot and rollback
 
@@ -309,16 +291,15 @@ rollback_to(s): table.rollback_to(s.snapshot) -- undoes bindings made since `s`
 ```
 
 This is the entire backtracking contract the solver relies on for every
-disjunct, comprehension reading, and widening attempt it tries and discards.
+resolution it tries and discards.
 Crucially, it checkpoints **only** `table` — the union-find bindings. The
 `arena` is append-only and is never part of a snapshot: any node pushed by
 `generic`, `function`, `resolved_node`, or `fresh_var` while a branch that
 later gets rolled back was being explored simply stays in the `Vec` forever,
 unreachable but not freed.
 
-This is deliberate, not an oversight — the struct's own doc comment calls it
-out as "harmless garbage" — and it is harmless because of *scope*, not
-because the arena is somehow reclaimed: [`infer`](https://mercorg.github.io/merc/merc_typecheck/inference/inference/fn.infer.html) constructs a fresh
+This is deliberate, and it is harmless because of *scope*, not
+because the arena is somehow reclaimed: inference constructs a fresh
 `Unifier` as a plain local for each equation (or standalone expression) it
 type checks, and drops it — arena included — the moment that one equation is
 done. So the garbage from a large overload-resolution search never outlives
