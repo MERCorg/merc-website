@@ -73,6 +73,7 @@ jobs:
             --no-progress
             --max-retries 3
             --retry-wait-time 5
+            --include-fragments
             ./docs
           fail: true
 
