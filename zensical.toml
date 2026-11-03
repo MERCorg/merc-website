@@ -21,6 +21,7 @@ nav = [
     ] },
     { "Rewriting" = [
       "developer/rewriting/aterms.md",
+      "developer/rewriting/conditional-rewriting.md",
       "developer/rewriting/set-automaton.md",
       "developer/rewriting/machine-numbers.md",
       "developer/rewriting/condition-caching.md",
@@ -48,6 +49,18 @@ nav = [
     ] },
     { "Specification" = [
       "developer/specification/index.md",
+    ] },
+    { "PBES" = [
+      "developer/pbes/pbes.md",
+      "developer/pbes/counter_examples.md",
+      "developer/pbes/srf_transformation.md",
+      "developer/pbes/pres.md",
+    ] },
+    { "Parity games" = [
+      "developer/parity/parity_games.md",
+      "developer/parity/strategy-improvement.md",
+      "developer/parity/exponential-constructions.md",
+      "developer/parity/hybrid-strategy-improvement.md",
     ] },
     { "Symbolic" = [
       "developer/symbolic/saturation.md",
