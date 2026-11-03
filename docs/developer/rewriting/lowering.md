@@ -2,7 +2,7 @@
 
 Lowering is the last phase of [type checking](../typechecking/index.md). It
 walks the typing produced by [sort inference](../typechecking/sort-inference.md)
-and emits maximally shared terms (Definition 2), of type
+and emits maximally shared terms ([Terms, Definition 2](aterms.md#def-maximal-sharing)), of type
 [`DataExpression`](https://mercorg.github.io/merc/merc_data/),
 materializing the implicit coercions as explicit function applications: numeric
 up-casts become the Appendix-B constructor chains, and finite-to-unbounded
@@ -11,11 +11,11 @@ literals are lowered to their exact Appendix-B constructor chains via
 arbitrary-precision binary encoding, and all binders (`lambda`,
 `forall`/`exists`, set/bag comprehensions, `where`) are lowered too. The phase assembles the full
 `Mcrl2DataSpecification`,
-the conditional rewrite system (Definition 3) of the specification's data
+the conditional rewrite system ([Conditional rewriting, Definition 1](conditional-rewriting.md#def-conditional-rewrite-system)) of the specification's data
 equations, by
 [`DataSpecification::lower_data_specification`](https://mercorg.github.io/merc/merc_typecheck/).
 This page defines which ground instances of the polymorphic operations lowering
-generates (Definition 12).
+generates (Definition 1).
 
 ## Materializing ground content at lowering time {#materializing-ground-content-at-lowering-time}
 
@@ -28,9 +28,9 @@ function-update and comparison operations stay schemes for as long as type
 checking runs, and a rewriter has no representation for a scheme: lowering
 needs concrete constructors, mappings and equations for exactly the container,
 function-update and comparison instantiations the specification actually uses.
-**Definition 12 (ground instances).** The *ground instances* of a specification
-are the least set of instances of the [templates](../typechecking/polymorphism.md)
-(Type checking, Definition 14) that contains
+<a id="def-ground-instances"></a>**Definition 1 (ground instances).** The *ground instances* of a specification
+are the least set of instances of the templates
+([Type variables and polymorphic schemes, Definition 2](../typechecking/polymorphism.md#def-instance)) that contains
 
 - the container template for every container sort that occurs in the
   specification, written or inferred, and the templates that it needs, such as
@@ -41,7 +41,7 @@ are the least set of instances of the [templates](../typechecking/polymorphism.m
 
 Lowering builds them, once, as follows:
 
-- **A syntactic pass** computes the least set of Definition 12 by a worklist over the sorts written in
+- **A syntactic pass** computes the least set of Definition 1 by a worklist over the sorts written in
 the specification (a `Set(S)` pulls in `FSet(S)`; a
   function sort pulls in the function-update operators for its arity), and
   independently, uniformly, over *every* sort for the comparison operators.
@@ -61,7 +61,7 @@ the specification (a `Set(S)` pulls in `FSet(S)`; a
   recorded sorts and replays the same worklist against them, diffed against
   what the syntactic pass already covered.
 - **Each generated equation is then specialized from its template's
-  already-proven typing by substitution instead of re-running inference.** This is Type checking, Theorem 2 ([Checking a template once](../typechecking/polymorphism.md#checking-a-template-once)),
+  already-proven typing by substitution instead of re-running inference.** This is [Type variables and polymorphic schemes, Theorem 1](../typechecking/polymorphism.md#thm-checking-a-template-once),
 applied where the specialisation is needed. Two instances of the same template
 (`Bag(Nat)`, `Bag(D)`) never collide, because neither is inferred: there is
 nothing to tie or disambiguate.

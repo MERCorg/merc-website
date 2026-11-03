@@ -22,7 +22,7 @@
 ```
 # On-the-fly and partial solving
 
-[`merc_vpg`](https://mercorg.github.io/merc/merc_vpg/index.html)'s symbolic solver is based on the paper:
+[`merc_vpg`](https://mercorg.github.io/merc/merc_vpg/index.html)'s symbolic solver is based on the paper [LWW22]:
 
 > Maurice Laveaux, Wieger Wesselink, Tim A.C.
 Willemse, *On-The-Fly Solving for Symbolic Parity Games*, TACAS 2022, LNCS
@@ -43,17 +43,18 @@ typically the initial vertex — is decided, however small a fragment of the
 full game that took.
 
 This page derives the four solvers from the paper's definitions and lemmas
-and explains how they fit together. It assumes familiarity with
+(Definitions 1 to 5, Theorems 1 to 3; the paper's own numbers are cited as
+"[LWW22], Lemma 3") and explains how they fit together. It assumes familiarity with
 [Zielonka's algorithm](zielonka.md) on symbolic parity games and does not
 restate it. Every construction below is given directly in its *safe* form —
 folding $I$ into every control-predecessor and attractor computation, per
 §4.1 of the paper — since that is the form actually used while exploring;
-each derivation marks with a `// safety: …` comment the one place this
-folding happens.
+each pseudocode block marks with "safety" the one place this folding happens.
 
 ## The α-safe vertex set
 
-**Definition 4.** For $\G = (G, I)$:
+<a id="def-safe-vertex-set-lww22-definition-4"></a>**Definition 1 ($\alpha$-safe vertex set; [LWW22], Definition 4).** For a partial
+game $\G = (G, I)$:
 
 ```math
 $$
@@ -64,9 +65,14 @@ $$
 i.e. remove the $\bar\alpha$-attractor of $\bar\alpha$'s own incomplete vertices —
 exactly the vertices from which $\bar\alpha$ could force play toward an incomplete
 vertex she owns, which is where a not-yet-discovered edge could later hand her an
-escape. Theorem 1 shows this is the *largest* such set: solving inside it is
-sound against every future extension of $\G$ (Lemma 1), and any dominion
-reaching outside it is not (Lemma 2/Corollary 1).
+escape.
+
+<a id="thm-safe-vertices-lww22-theorem-1"></a>**Theorem 1 (safe vertices; [LWW22], Theorem 1).** $\safe\alpha$ is the largest
+set in which solving is sound against every future extension of $\G$: a vertex
+won by $\alpha$ in the subgame on $\safe\alpha$ is won by $\alpha$ in every
+extension ([LWW22], Lemma 1), and a dominion that reaches outside it need not be
+([LWW22], Lemma 2 and Corollary 1). Proved in the paper; not formalised in
+Lean.
 
 The implementation ports this with one addition beyond the literal formula:
 
@@ -85,14 +91,14 @@ The implementation ports this with one addition beyond the literal formula:
 
 The extra `sinks(incomplete, v)` term seeds the opponent's attractor with
 every *structural* sink of `incomplete` too, not only the `opponent`-owned
-incomplete vertices Definition 4 literally names. An unexplored vertex has no
+incomplete vertices Definition 1 literally names. An unexplored vertex has no
 discovered successors yet regardless of who owns it, so without this term an
 `alpha`-owned incomplete vertex with no known outgoing edges could stay
 inside the returned safe set — and partial solving, the one solver that runs a
 plain Zielonka over this set (below), assumes totality. The extra term is what
 keeps the safe subgame actually total whenever `incomplete` is non-empty;
 mCRL2's own implementation does the same for the same reason, so this is not a
-merc-specific strengthening of Definition 4, just its operational form.
+merc-specific strengthening of Definition 1, just its operational form.
 
 ## The safe attractor
 
@@ -101,7 +107,10 @@ doing when a solver actually needs the *subgame* itself, as partial solving
 does. The other three solvers below only ever need attractors, never the
 subgame, so §4.1 gives them a *safe* control-predecessor that folds the
 incomplete set directly into $\cpre_\alpha$ instead, without ever
-materialising $\safe\alpha$:
+materialising $\safe\alpha$.
+
+<a id="def-safe-control-predecessor-and-attractor-lww22-4-1"></a>**Definition 2 (safe control predecessor and attractor; [LWW22], §4.1).** For a
+partial game $\G$ with incomplete vertices $I$ and sinks $\mathrm{sinks}(\G)$:
 
 ```math
 $$
@@ -115,10 +124,13 @@ $$
 $$
 ```
 
-Lemma 3 shows $\spre_\alpha(\G, X)$ agrees with the ordinary $\cpre_\alpha$
-computed *inside* the safe subgame for any $X \subseteq \safe\alpha$; Lemma 4
-lifts this to the whole fixed point:
-$\SAttr_\alpha(\G, X) = \Attr_\alpha(\G \cap \safe\alpha, X)$. This equality
+<a id="thm-safe-attractor-lww22-lemma-4"></a>**Theorem 2 (safe attractor; [LWW22], Lemma 4).** For every
+$X \subseteq \safe\alpha$,
+$\SAttr_\alpha(\G, X) = \Attr_\alpha(\G \cap \safe\alpha, X)$.
+
+The step case is [LWW22], Lemma 3: $\spre_\alpha(\G, X)$ agrees with the
+ordinary $\cpre_\alpha$ computed inside the safe subgame. Theorem 2 is proved in
+the paper; not formalised in Lean. This equality
 is what lets every solver below use $\spre_\alpha/\SAttr_\alpha$ freely in
 place of $\cpre_\alpha/\Attr_\alpha$ and stay just as sound as if it had
 first restricted itself to $\safe\alpha$.
@@ -163,7 +175,7 @@ $\cpre_\alpha/\Attr_\alpha$ is marked:
 
 With `incomplete = ∅` the marked line vanishes and this is exactly plain
 $\cpre_\alpha/\Attr_\alpha$ — `SafeVertices` above calls it that way on purpose,
-since Definition 4 wants the ordinary attractor, not the safe one.
+since Definition 1 wants the ordinary attractor, not the safe one.
 `ComputeTotalGraph`'s two attractor calls (one per player, over the
 already-resolved `winning` sets) and `MonotoneAttractor`'s inner loop (below)
 both go through this same pair with the real `incomplete` set.
@@ -173,14 +185,14 @@ both go through this same pair with the real `incomplete` set.
 The paper uses "safe" for two related but distinct constructions, and the
 ambiguity is inherited from it, not a documentation accident:
 
-- the **$\alpha$-safe vertex set** $\safe\alpha$ (Definition 4,
+- the **$\alpha$-safe vertex set** $\safe\alpha$ (Definition 1,
   `SafeVertices`) — a *subgame*, a subset of $V$, obtained by one extra
   attractor fixed point;
 - the **safe control predecessor/attractor** (§4.1, $\spre_\alpha/\SAttr_\alpha$,
   `ControlPredecessors`/`Attractor` above) — folding $I$ into every step so
   that no subgame ever needs to be materialised.
 
-Lemma 4 is what makes the choice between them purely about what a given
+Theorem 2 is what makes the choice between them purely about what a given
 solver already needs, not a soundness trade-off: partial solving below hands a
 plain, unrestricted Zielonka an entire subgame to work on, so it needs
 $\safe\alpha$ materialised regardless and uses the first form directly; the
@@ -227,10 +239,11 @@ as in [Zielonka's algorithm](zielonka.md), unmodified.
 
 ## Solitaire cycles
 
-A solitaire cycle is a set $U$, entirely owned by one player $\alpha$, at
+<a id="def-solitaire-cycle-lww22"></a>**Definition 3 (solitaire cycle; [LWW22]).** A solitaire cycle is a set $U$,
+entirely owned by one player $\alpha$, at
 $\alpha$'s own priority parity, where every vertex has an edge staying inside
 $U$ — so $\alpha$ can simply loop forever inside it, winning it outright with no
-attractor reasoning needed at all (Proposition 1:
+attractor reasoning needed at all ([LWW22], Proposition 1:
 $C_{sol}^\alpha(\G) \subseteq \safe\alpha$ unconditionally, and the fixed
 point uses only plain $\mathrm{pre}$):
 
@@ -251,7 +264,7 @@ In pseudocode:
   \For{$\alpha \in \{\mathrm{Even}, \mathrm{Odd}\}$}
     \State $U \gets \mathit{Parity}[\alpha] \cap V_{\mathrm{player}}[\alpha]$
     \Repeat
-      \State $U \gets \Call{Predecessors}{U, U}$ \Comment{plain pre --- Prop. 1: no cpre/spre anywhere in this loop}
+      \State $U \gets \Call{Predecessors}{U, U}$ \Comment{plain pre --- [LWW22], Proposition 1: no cpre/spre anywhere in this loop}
     \Until{fixed point}
     \State \Call{AcceptCycle}{$\alpha, U, \mathit{incomplete}$}
   \EndFor
@@ -271,7 +284,7 @@ attractor:
 \begin{algorithmic}[1]
 \Function{AcceptCycle}{$\alpha, U, \mathit{incomplete}$}
   \State $\mathit{attracted}, \_ \gets \Call{Attractor}{\alpha, U, \mathit{total}, V_{\mathrm{player}}, \mathit{incomplete}}$
-  \Statex \Comment{safety: $\SAttr_\alpha$, by Lemma 4, closes $U$ into a won region without ever computing $\safe\alpha$}
+  \Statex \Comment{safety: $\SAttr_\alpha$, by Theorem 5, closes $U$ into a won region without ever computing $\safe\alpha$}
   \State $\mathit{winning}[\alpha] \gets \mathit{winning}[\alpha] \cup \mathit{attracted}$
 \EndFunction
 \end{algorithmic}
@@ -279,7 +292,8 @@ attractor:
 
 ## Forced cycles
 
-Generalises solitaire cycles to mixed-owner cycles: $U$ may include
+<a id="def-forced-cycle-lww22"></a>**Definition 4 (forced cycle; [LWW22]).** A forced cycle generalises solitaire
+cycles to mixed-owner cycles: $U$ may include
 $\bar\alpha$-owned vertices too, as long as $\bar\alpha$ has no edge that
 escapes $U$ from any of them — her "choice" to leave is illusory, so the whole
 cycle is still won by $\alpha$. The direct construction restricts to the safe
@@ -291,7 +305,7 @@ C_{for}^\alpha(\G) = \nu Z.\, (P_\alpha \cap \safe\alpha \cap \cpre_\alpha(\G, Z
 $$
 ```
 
-and Proposition 2 gives a $\spre_\alpha$-based reformulation that never needs
+and [LWW22], Proposition 2 gives a $\spre_\alpha$-based reformulation that never needs
 $\safe\alpha$ materialised at all:
 
 ```math
@@ -322,13 +336,14 @@ with `outside = v \ u`:
 \end{algorithmic}
 ```
 
-By Proposition 2 this reaches the same $U$ that restricting to $\safe\alpha$
+By [LWW22], Proposition 2 this reaches the same $U$ that restricting to $\safe\alpha$
 and using plain $\cpre_\alpha$ would; it just never pays for $\safe\alpha$ to
 get there.
 
-## Fatal attractors
+## Fatal attractors {#fatal-attractors}
 
-Fatal attractors (Huth, Kuo, Piterman, FOSSACS 2013) find, for each priority
+<a id="def-fatal-attractor"></a>**Definition 5 (fatal attractor).** Fatal attractors (Huth, Kuo, Piterman,
+FOSSACS 2013) find, for each priority
 $c$, a set of priority-$c$ vertices that $\alpha$ (the player owning priority
 $c$) can always force play back into — winning the whole attractor into that
 set. The monotone control predecessor restricts candidates to priorities no
@@ -348,7 +363,7 @@ F^\alpha(\G, c) = \nu Z.\, (P_{=c} \cap \safe\alpha \cap \MAttr_\alpha(\G \cap \
 $$
 ```
 
-and, again via the safe-attractor mechanism (Proposition 3):
+and, again via the safe-attractor mechanism ([LWW22], Proposition 3):
 
 ```math
 $$
@@ -412,3 +427,14 @@ Unlike the other three solvers, this one accumulates no strategy across
 iterations at all: a vertex can belong to fatal attractors at *different*
 priorities on different outer-loop iterations before it is finally claimed,
 and no attempt is made to reconcile that history into one strategy.
+
+<a id="thm-fatal-attractors-are-sound"></a>**Theorem 3 (fatal attractors are sound).** For the original formulation of Huth,
+Kuo and Piterman, on a complete game ($I = \emptyset$),
+for every order in which the priorities are processed, detecting fatal
+attractors maps a sound partial solution (each player's region is closed and won
+by that player's strategy) to a sound partial solution that extends it.
+
+Theorem 3 is proved in Lean, without `sorry`, as
+`FatalAttractorOriginalSound` in the
+[`MercLib/ParityGame`](https://github.com/MERCorg/merc-verified/tree/main/MercLib/ParityGame) library of merc-verified. The safe, monotone variant above, for partial games
+($I \neq \emptyset$), is not formalised.

@@ -1,11 +1,7 @@
 ```math_preamble
 \usepackage[paperwidth=60cm,paperheight=60cm,margin=5mm]{geometry}
 \usepackage{algpseudocode}
-% Default \Comment right-justifies with \hfill, which — combined with a wide
-% page to fit long comments — leaves a huge blank gap between code and
-% comment, and dvisvgm's tightpage crop then bakes that gap into the SVG:
-% CSS stretches the whole (mostly blank) image to the page width, shrinking
-% the actual pseudocode. Keep comments inline instead. See README.md.
+% Default \Comment right-justifies with \hfill.
 \algrenewcommand{\algorithmiccomment}[1]{$\triangleright$ #1}
 \newcommand{\G}{\mathcal G}
 \newcommand{\Attr}{\mathrm{Attr}}
@@ -13,17 +9,40 @@
 ```
 # Zielonka's algorithm
 
-See [Partial solving](partial-solving.md) for how the same $\Attr_\alpha$
-computation below is run *during* exploration — before the graph is fully
-known — to decide vertices on the fly, rather than only after the recursion
-here has a complete graph to work with.
+The symbolic solver of [`merc_vpg`](https://mercorg.github.io/merc/merc_vpg/index.html)
+is Zielonka's recursive algorithm over LDDs. This page defines the attractor
+(Definition 1), gives the algorithm, and states its correctness (Theorems 1 and 2),
+which is proved in Lean. See [Partial solving](partial-solving.md) for how the
+same attractor computation is run *during* exploration, before the graph is fully
+known, to decide vertices on the fly.
 
 ## Priority direction: max-parity vs min-parity
 
-merc's [`Priority`](https://mercorg.github.io/merc/merc_vpg/type.Priority.html) is a **max-parity** encoding: the outermost fixpoint block gets the *largest*
+merc's priorities are a **max-parity** encoding: the outermost fixpoint block gets the *largest*
 priority, a priority `p` belongs to Even exactly when `p` is even, and the solver picks the highest
 priority present. mCRL2's symbolic solver is **min-parity**: the outermost block gets rank 0, and
 it picks the smallest rank instead, with `alpha = m % 2`.
+
+## Attractors
+
+<a id="def-attractor"></a>**Definition 1 (attractor).** For a parity game $\G = (V, V_0, V_1, E,
+\mathrm{priority})$ with players $\alpha$ and $\bar\alpha$, the *control
+predecessor* of $U \subseteq V$ is
+
+```math
+$$
+\mathrm{cpre}_\alpha(\G, U) = \{v \in V_\alpha \mid \exists (v, w) \in E.\ w \in U\} \cup \{v \in V_{\bar\alpha} \mid \forall (v, w) \in E.\ w \in U\}
+$$
+```
+
+and the *attractor* $\Attr_\alpha(\G, U)$ is the least fixed point
+$\mu Z.\ U \cup \mathrm{cpre}_\alpha(\G, Z)$: the vertices from which
+$\alpha$ can force play into $U$.
+
+<a id="thm-attractor"></a>**Theorem 1 (attractor).** $U \subseteq \Attr_\alpha(\G, U)$, the complement
+$V \setminus \Attr_\alpha(\G, U)$ is again a (total) subgame, no vertex of
+$\alpha$ in the complement has an edge into the attractor, and $\alpha$ has a
+positional strategy that forces every play from the attractor into $U$.
 
 ## The recursive algorithm
 
@@ -62,6 +81,22 @@ everywhere else it only removes vertices and recurses. That is also why on-the-f
 (next page) needs to touch nothing but those two computations: substituting the safe attractor
 $\SAttr_\alpha$ for $\Attr_\alpha$ there is enough to keep the whole recursion sound against a graph
 that is still being explored.
+
+<a id="thm-correctness-of-zielonka-s-algorithm"></a>**Theorem 2 (correctness of Zielonka's algorithm).** For every finite parity
+game, the winning regions that Zielonka's algorithm returns partition the
+vertices, and each player's positional strategy wins from every vertex of that
+player's region. In particular, parity games are positionally determined.
+
+Theorems 1 and 2 are proved in Lean, without `sorry`, in the
+[`MercLib/ParityGame`](https://github.com/MERCorg/merc-verified/tree/main/MercLib/ParityGame) library of merc-verified:
+
+| theorem | Lean |
+|---|---|
+| Theorem 1 | `Game.attractorCorrect`, for `Game.attr` |
+| Theorem 2 | `Game.ZielonkaCorrect`, stated with `Solves` |
+
+The Lean formalisation is of the explicit algorithm on sets; the symbolic
+implementation over LDDs is not verified against it.
 
 ## Strategy representation
 

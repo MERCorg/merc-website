@@ -1,163 +1,126 @@
-# Specification Type Checking
+# Specification type checking
 
-`DataSpecification` only ever covers the data language. Three specification
-kinds build on top of it: [`ProcessSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.ProcessSpecification.html) (a process algebra term),
-[`PbesSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.PbesSpecification.html) (a parameterised boolean equation system), and
-[`PresSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.PresSpecification.html) (a parameterised *real* equation system). All three
-follow the same two-step shape: each first type checks its embedded [data
-specification](../typechecking/index.md) exactly as a standalone
-[`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.DataSpecification.html) is checked, then **collects declarations** into a lookup
-table before checking anything that refers to
-them, and finally **type checks every expression** by walking the
-specification's bodies/equations and resolving each name and sort against
-those tables. Errors are reported as [`ProcessError`](https://mercorg.github.io/merc/merc_typecheck/enum.ProcessError.html)/[`PbesError`](https://mercorg.github.io/merc/merc_typecheck/enum.PbesError.html)/[`PresError`](https://mercorg.github.io/merc/merc_typecheck/enum.PresError.html),
-each a superset of [`WellTypedError`](https://mercorg.github.io/merc/merc_typecheck/enum.WellTypedError.html)/[`InferenceError`](https://mercorg.github.io/merc/merc_typecheck/enum.InferenceError.html).
+A [data specification](../typechecking/index.md) covers only the data language.
+This page defines how the specifications built on top of it are type checked:
+process specifications and modal formulas in
+[`merc_typecheck`](https://mercorg.github.io/merc/merc_typecheck/index.html), and
+PBESs and PRESs in [`merc_pbes`](https://mercorg.github.io/merc/merc_pbes/index.html)
+and [`merc_pres`](https://mercorg.github.io/merc/merc_pres/index.html). It
+assumes the definitions of the [Type checking](../typechecking/index.md) section,
+cited as "Type checking, Definition $n$".
 
-## Collecting declarations
+All of them follow the same three steps.
 
-Before any body or equation is walked, each checker builds a declaration
-table so that later name resolution is a lookup rather than a search:
+1. **Resolve variables.** Every binder of the specification, such as a process
+   parameter, a `sum` variable, a global variable or a quantifier, is resolved
+   syntactically, as in Type checking, [Sort and name resolution, Definition 1](../typechecking/name-resolution.md#def-variable-resolution).
+2. **Check the data specification** exactly as a standalone
+   `DataSpecification`,
+   and **collect the declarations** of the specification (actions, processes,
+   propositional variables) into tables, so that resolving a name later is a
+   lookup.
+3. **Check every expression** of the specification against the sort it must
+   have, resolving names against the declaration tables and the data signature.
 
-- **`ProcessSpecification`** builds two tables, `actions_by_name` and
-  `processes_by_name`, each mapping a name to a *list* of indices — mCRL2
-  allows multiple `act`/`proc` declarations to share a name, distinguished by
-  argument sort or arity (mirroring `abp.mcrl2`'s `s3,r3,c3: D # Bool;
-  s3,r3,c3: Error;` and `abp_bw.mcrl2`'s `S`, `S(b:Bit)`, `S(d:D,b:Bit)`), so
-  the table has to support overload resolution rather than a single slot per
-  name. Building the tables rejects a specification that declares the same name
-  as both an action and a process outright
-  (`ProcessError::ActionAndProcessConflict`) — such a name would make every
-  use later permanently ambiguous between the two tables, with no way for an
-  argument-sort check to break the tie. This means that by the time checking
-  runs, at most one of `actions_by_name`/`processes_by_name` ever has an
-  entry for a given name; the two tables are mutually exclusive by
-  construction, not by anything the check walk does itself.
-- **`PbesSpecification`** and **`PresSpecification`** each resolve a single
-  -slot `name -> (parameters, ...)` table for their propositional-variable
-  equations, one entry per equation. A `mu`/`nu X(...) = ...` re-declaring an
-  already-declared `X` is a `PbesError`/`PresError::DuplicatePropositionalVariable`,
-  not an overload — a `PropVarInst` either resolves to the one declared
-  equation or doesn't resolve at all, so there is no
-  `NoMatchingOverload`/`AmbiguousActionOrProcess` equivalent to report for
-  these two kinds.
+Type checking covers sorts and names only. Properties such as the monotonicity of
+a PBES, or its alternation depth, are separate analyses.
 
-## Type checking all expressions
+## Process specifications
 
-Once the declaration tables exist, each checker walks every body/equation and
-checks every expression it contains against an expected sort, resolving
-overloaded names along the way:
+<a id="def-action-and-process-declarations"></a>**Definition 1 (action and process declarations).** A process specification
+declares actions and processes. A name may be declared several times as an
+action, or several times as a process, with different argument sorts; these are
+its *overloads*. A name may not be declared both as an action and as a process.
 
-- **`ProcessSpecification`** walks every `proc` body and `init`: action and
-  process-instantiation arguments against their declared sorts (with overload
-  resolution where a name is declared more than once — see [action vs.
-  process instantiation](#a-second-unrelated-ambiguity-action-vs-process-instantiation)
-  below), `sum`/`dist`-bound variables in scope for the subtree they bind,
-  conditions against `Bool`, and time bounds/`dist` weights against `Real`.
-  Communication sort-compatibility is not checked yet.
-- **`PbesSpecification`** walks every equation's formula and `init`:
-  resolving each `PropVarInst` by name and checking its argument count and
-  each argument's sort, checking `val(...)` expressions against `Bool`, and
-  scoping quantifier (`forall`/`exists`) binders to the subtree they bind.
-- **`PresSpecification`** walks the same shape as `PbesSpecification`, but
-  checks each data expression embedded via `val(...)` (and each
-  `*`-constant multiplier) against `Real` rather than `Bool`, and scopes
-  `inf`/`sup`/`sum` binders instead of quantifiers — see [extra
-  constructs](#extra-constructs-same-checking-shape) below.
+The last condition is needed because the grammar of mCRL2 uses one production
+for both an action instance and a positional process instantiation: the parser
+produces the same node for `a(e)` whether `a` is an action or a process. The
+[disambiguation pass](../parsing/disambiguation.md) recognises process content
+by whether a name is declared as an action or a process, but never decides which
+of the two it is. With Definition 1, at most one of the two tables has an entry
+for any name, so a use of the name is never ambiguous between the two.
 
-Each of the three checks *sorts and names* only. PBES/PRES well-formedness
-properties like monotonicity or alternation depth of propositional variables
-are a separate semantic analysis, out of scope for type checking.
+<a id="def-resolving-an-instance"></a>**Definition 2 (resolving an instance).** An occurrence `a(e_1, ..., e_n)`
+resolves to the overload of `a` with $n$ parameters whose parameter sorts the
+arguments can be checked against. It is an error if no such overload exists, and
+an ambiguity if more than one does.
 
-## Process Specification
+Resolving an instance needs the sorts of its arguments, so it happens during type
+checking, not in a syntactic pass. An ambiguity remains when the declarations do
+not rule it out: with `act c: Nat; act c: Int;`, the instance `c(1)` checks
+against both, since the literal admits both sorts.
 
-### Disambiguation pass
+The check of a process specification further covers every `proc` body and
+`init`: `sum` and `dist` variables are in scope for the subterm they bind,
+conditions are checked against `Bool`, time stamps and `dist` weights against
+`Real`, and every communication `a | b -> c` is checked for compatible sorts.
+Errors are reported as
+`ProcessError`,
+which includes the errors of the data specification. The result is a
+`ProcessSpecification`.
 
-See [Grammar-Ambiguity Disambiguation Pass](../parsing/disambiguation.md) for
-the full mechanism.
+## Modal formulas
 
-### A second, unrelated ambiguity: action vs. process instantiation
+A
+`ModalSpecification`
+is a state formula of the modal $\mu$-calculus, with its data specification and
+action declarations. Its check resolves every action instance as in
+Definition 2, every fixpoint variable to its enclosing `mu` or `nu` binder, and
+scopes the data variables of quantifiers and of `inf`, `sup` and `sum`. A
+`FormulaType`
+selects the sort of the state-level `val(...)` expressions: `Bool` for an
+ordinary formula and `Real` for a quantitative one.
 
-`name(args)` is ambiguous in a completely different way from the swallow
-above, and `disambiguate` does not — and cannot — resolve it. mCRL2's grammar
-uses one production, `Action`, for *both* an action instance and a positional
-process instantiation; the parser hands out `ProcessExprKind::Action` for
-either without knowing (or caring) which:
+## Equation systems
 
-```rust
-Rule::Action => {
-    let action = Mcrl2Parser::Action(Node::new(primary))?;
+PBESs and PRESs are both *equation systems*: a sequence of fixpoint equations
+over propositional variables, global variables, and an initial instantiation
+(see [PBES](../pbes/pbes.md) and [PRES](../pbes/pres.md)). They differ only in
+their formulas.
 
-    Ok(ProcessExprKind::Action(action.id, action.args).spanned(span))
-}
-```
+<a id="def-kind-of-equation-system"></a>**Definition 3 (kind of equation system).** A kind of equation system is given by
 
-`disambiguate` only ever asks "is this name declared as *either* an action or
-a process" (see its `Names` set) to recognize process content while
-un-swallowing a `Condition` — it never needs to know, and never determines,
-*which* of the two `name` refers to. So every `Action(name, args)` node,
-disambiguated or not, still carries this ambiguity into type checking, where
-it is resolved as described in [Collecting declarations](#collecting-declarations)
-and [Type checking all expressions](#type-checking-all-expressions) above: the
-checker collects every arity-matching candidate across whichever single table
-actually declares `name` (a no-op chain on the side
-with no entry), type checks each candidate's arguments against its own
-declared domain, and requires *exactly one* to succeed — zero is an
-undeclared name, more than one is a genuine ambiguity the declarations
-themselves didn't rule out (e.g. `act c: Nat; act c: Int;` called as `c(1)`:
-`Nat <= Int` widens either way, so a bare `Nat` argument doesn't
-disambiguate). Resolving an overload needs the argument expressions' *sorts*,
-which only exist once type checking is underway — no amount of syntactic
-reparsing beforehand could move this check earlier.
+- its *value sort*: the sort that the data expressions embedded in a formula
+  must have, `Bool` for a PBES and `Real` for a PRES;
+- for every formula node, its *shape*: a data expression of the value sort (such
+  as `val(e)`, or the constant of a constant multiplication in a PRES), an
+  instantiation $X(e_1, \ldots, e_n)$, a binder of data variables (a quantifier,
+  or `inf`, `sup` and `sum` in a PRES), or any other node, whose subformulas are
+  checked on their own.
 
-The single winning candidate identified this way is also where `name`'s own
-go-to-definition span is filled in — see [LSP support](../typechecking/typing-info.md#action-and-process-instantiation-names-resolved-by-the-checker-not-the-pre-pass).
+<a id="def-well-typed-equation-system"></a>**Definition 4 (well-typed equation system).** An equation system is well-typed
+if its data specification is; no propositional variable has two equations; no
+equation declares a parameter twice, and no global variable is declared twice;
+no variable declaration uses an anonymous structured sort; every
+instantiation, also the initial one, refers to a declared propositional variable,
+with as many arguments as it has parameters, each checkable against the sort of
+its parameter; and every data expression checks against the value sort, with the
+variables of the enclosing binders, the equation's parameters and the global
+variables in scope.
 
-## PBES Specification
+A propositional variable is never overloaded, so an instantiation either resolves
+to its one equation or is an error.
 
-Unlike `ProcessSpecification`, there is no grammar-ambiguity disambiguation
-pass: a PBES formula shares no tokens between two different readings the way
-a process body's `Condition` does, so every `PbesExpr` the parser produces is
-already correctly shaped.
+In merc, Definition 3 is the trait
+`EquationSystem`,
+and the check of Definition 4 is written once, in
+`Specification`,
+for every kind of equation system. A PBES is
+`PbesSpecification`
+and a PRES is
+`PresSpecification`,
+both reporting
+`EquationSystemError`.
+Neither needs a disambiguation pass: their formulas have no syntax that two
+different readings share, as a process body's conditions do.
 
-## PRES Specification
+## Typing information
 
-A PRES formula shares no disambiguation pass with `ProcessSpecification`
-either, for the same reason `PbesSpecification` doesn't.
-
-### Extra constructs, same checking shape
-
-A `PresExpr` has every `PbesExpr` variant's checking shape (`True`/`False`,
-`PropVarInst`, `Negation`, `Binary`) plus five with no PBES counterpart, none
-of which change how checking is structured — each is just another node the
-scoped walk recurses through, or (for `DataValExpr`/the constant multipliers)
-another leaf checked against `Real`:
-
-- `Equal { eq, body }` (`eqinf(...)`/`eqninf(...)`) and
-  `Condition { condition, lhs, then, else_ }` (`condsm(...)`/`condeq(...)`)
-  both just recurse into their `PresExpr` children — none of the three
-  arguments to `condsm`/`condeq` is a boolean guard, so there is nothing to
-  check beyond that shared recursion.
-- `{Left,Right}ConstantMultiply { constant, expr }` (`val(...) * X` /
-  `X * val(...)`) checks `constant` against `Real` and recurses into `expr`.
-- `Bound { op, variables, expr }` (`inf`/`sup`/`sum x: D . expr`) is
-  [`PbesExprKind::Quantifier`](https://mercorg.github.io/merc/merc_syntax/enum.PbesExprKind.html#variant.Quantifier)'s counterpart: the PRES check resolves
-  `variables`' declared sorts into the same flat, span-keyed [`Scope`](https://mercorg.github.io/merc/merc_typecheck/checking/type.Scope.html) a PBES's
-  [`Quantifier`](https://mercorg.github.io/merc/merc_syntax/enum.PbesExprKind.html#variant.Quantifier) or a process's [`Sum`](https://mercorg.github.io/merc/merc_syntax/enum.ProcessExprKind.html#variant.Sum)/[`Dist`](https://mercorg.github.io/merc/merc_syntax/enum.ProcessExprKind.html#variant.Dist) binders produce.
-
-## Span-keyed typing info (LSP support)
-
-[`ProcessSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.ProcessSpecification.html), [`PbesSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.PbesSpecification.html) and [`PresSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.PresSpecification.html) each expose
-the same span-keyed [`TypingInfo`](../typechecking/typing-info.md) a
-[`DataSpecification`](https://mercorg.github.io/merc/merc_typecheck/struct.DataSpecification.html) does, merged over every expression the walk above checks:
-
-- **Process** — action arguments, process-instantiation arguments,
-  conditions, time bounds, `dist` weights.
-- **PBES** — `val(...)` expressions, `PropVarInst` arguments, quantifier
-  binders.
-- **PRES** — the same as PBES, plus constant multipliers and
-  `inf`/`sup`/`sum` binders.
-
-All three are computed once during construction — the walk that resolves names
-and sorts already visits every node, so exposing the accumulated `TypingInfo`
-needs no extra pass — so reading it back afterwards is a cheap clone rather
-than a second pass.
+Every kind of specification exposes the same
+[typing information](../typechecking/typing-info.md) as a data specification,
+extended with the expressions that its own check visits: action and process
+arguments, conditions, time stamps and `dist` weights for a process
+specification; `val(...)` expressions, instantiation arguments and binders for a
+modal formula, a PBES or a PRES; and the action, process, fixpoint-variable and
+propositional-variable names that the check resolves. It is collected during the
+check itself, since that walk already visits every node.

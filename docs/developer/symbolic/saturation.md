@@ -20,7 +20,9 @@ states of a symbolic transition system with the algorithm of:
 > Gianfranco Ciardo, Robert Marmorstein, Radu Siminiceanu, *The saturation
 > algorithm for symbolic state-space exploration*, STTT 8(1), 2006.
 
-This page explains saturation in detail, and changes compared to the paper.
+This page defines the sets that saturation computes (Definitions 1 and 2), states
+why it computes the reachable states (Theorem 1), and describes merc's
+implementation and how it differs from the paper.
 
 ## Overview
 
@@ -42,10 +44,10 @@ node on every path. merc numbers positions $0, \dots, K-1$ from the *top*, the
 paper numbers levels $K, \dots, 1$, so the paper's top level is the *smallest*
 position here. Basically depth vs height of the tree.
 
-**Events.** One transition group is one event $e$. It is stored as a relation LDD
-over the group's *read and write* positions only, plus a `meta` LDD that says which
-positions of the relation are read, written, or both. Two numbers are derived from
-that:
+<a id="def-event"></a>**Definition 1 (event).** An *event* $e$ is one transition group, with read
+positions $R_e$ and write positions $W_e$. It is stored as a relation LDD over the
+positions $R_e \cup W_e$ only, plus a `meta` LDD that says which positions of the
+relation are read, written, or both. Its *top* and *bottom* are
 
 ```math
 $$
@@ -68,11 +70,9 @@ $\Top$ and is dropped.
 ## Quasi-reducedness
 
 Everything above relies on one property of oxidd's LDDs: they are
-*quasi-reduced*. There is no level skipping, and no way to represent it — every
-vector position has its own node on every path, `apply_relational_product`'s
-meta-`0` case destructures the set as an inner node unconditionally, and there
-is no "reduce" step that could elide one (`LDDRules::reduce` is
-`unimplemented!()`; building a node is a raw `get_or_insert`).
+*quasi-reduced*. There is no level skipping, and no way to represent it: every
+vector position has its own node on every path, and there is no reduction step
+that could elide one.
 
 The consequence is what the paper's algorithm needs: a value absent from a
 node's spine means *not in the set*, never *don't care*. So growing a
@@ -83,13 +83,16 @@ domain growing while an exploration is running is therefore in the *operation
 cache*, not in the nodes; see [Caching](#caching-and-the-saturation-cache).
 
 A second consequence: a node's height determines $p$ (position $=$ vector
-length minus height), so `saturate` passes $p$ down as an argument instead of
-recomputing it, and does not put it in the cache key.
+length minus height), so `Saturate` passes $p$ down as an argument instead of recomputing it, and does not put it in the cache key.
 
 ## The recursion
 
-Let $E_p = \{e \mid \Top(e) = p\}$ and let $\Sat_p(X)$ be the smallest superset of
-$X$ that is closed under every event with $\Top(e) \ge p$. Then
+<a id="def-saturated-set"></a>**Definition 2 (saturated set).** Let $E_p = \{e \mid \Top(e) = p\}$. For a set
+of states $X$ represented by a node at position $p$, $\Sat_p(X)$ is the smallest
+superset of $X$ that is closed under every event with $\Top(e) \ge p$.
+
+<a id="thm-saturation"></a>**Theorem 1 (saturation).** $\textsc{Saturate}(q, p) = \Sat_p(q)$ for every node
+$q$ at position $p$. In particular
 
 ```math
 $$
@@ -97,7 +100,7 @@ $$
 $$
 ```
 
-so reachability is *one* call `saturate(initial_states, 0)`, and it works unchanged
+so reachability is *one* call $\textsc{Saturate}(I, 0)$, and it works unchanged
 for a set of initial states. The paper's `Generate` procedure disappears.
 
 ```math
@@ -127,14 +130,15 @@ for a set of initial states. The paper's `Generate` procedure disappears.
 \end{algorithmic}
 ```
 
-Reading the pseudocode top to bottom is the argument for correctness. After the first
-line, every continuation in $A$ is closed under all events *below* $p$, because no event
+*Proof idea.* This adapts the correctness argument of Ciardo et al. to merc's variant of
+the recursion; reading the pseudocode top to bottom is the argument. After the
+first line, every continuation in $A$ is closed under all events *below* $p$, because no event
 with $\Top > p$ touches position $p$ and the children were saturated. Every $f$ that
 `FireTop` returns is closed under those events as well, so a union of two of them is too,
 and $A$ stays closed while it grows. The `while` loop additionally closes it under $E_p$.
 Only the values whose continuation changed are fired again, which is the paper's
 *pipelining*. The set only grows and is bounded by the reachable states, so the loop
-terminates.
+terminates. The theorem is argued on paper; it is not formalised in Lean.
 
 **Worked example.** Let $K = 2$, and start from $\{(0,0)\}$.
 Event $a$ has $\Top = \Bot = 1$ and moves position 1 from 0 to 1. Event $b$ has
@@ -261,8 +265,8 @@ node in progress *outside* the diagram, and builds it once:
 ### Sharing the relational product
 
 Below $\Top(e)$ firing an event is an ordinary relational product, so the five-case
-analysis over `meta` is not duplicated. `relational_product_step` in
-`oxidd-rules-ldd/src/apply.rs` does one level of it, and asks a
+analysis over `meta` is not duplicated. One step of the relational product does
+one level of it, and asks a
 `RelationalProductRecursion` how to continue. There are two implementations:
 
 | | Continuation `Next` (result at the next position) | Continuation `Same` |
@@ -283,7 +287,7 @@ their length on entry, only touches what is above it and truncates back before i
 returns. The information that stays the same during a run (the events) is in a
 `Saturation` struct, so that stack frames stay small.
 
-## Caching and the saturation cache
+## Caching and the saturation cache {#caching-and-the-saturation-cache}
 
 Two operators are cached, next to the existing ones (slots are the operands and the result):
 
@@ -369,7 +373,7 @@ finite lattice.
 `remove_states_with_successor` pass over the final state set, which leaves the
 states that no group can leave.
 
-## Memory and garbage collection
+## Memory and garbage collection {#memory-and-garbage-collection}
 
 Saturation produces *more* garbage than the other strategies, by construction:
 every time the continuation of a value of a node that is still converging obtains a
@@ -408,13 +412,10 @@ with identical state counts. So:
 
 ## Testing
 
-* `test_reachability_strategies_agree` and `test_reachability_detect_deadlocks` run
-  the strategies against each other (`anderson.4` and a line LTS), and the `GridLps`
-  tests run all of them on a model whose relations have to be learned.
-* In the fork, a randomised differential test compares `saturate` against
-  iterating union and relational product to a fixed point, over random events with
-  random read/write patterns, which is the cheapest way to exercise the three
-  `meta` cases at the top.
-* `saturation_peak_benchmark` prints the peak and final node counts of every
-  strategy per fixture. It prints and does not assert, so nothing guards against a
-  regression that turns saturation back into a breadth-first search.
+The reachability strategies are run against each other on pregenerated state
+spaces and on a model whose relations have to be learned, and a randomised
+differential test compares saturation with iterating union and relational product
+to a fixed point, over random events with random read and write patterns, which
+exercises the three `meta` cases at the top. A benchmark prints the peak and final
+node counts of every strategy; it does not assert them, so nothing guards against
+a regression that turns saturation back into a breadth-first search.

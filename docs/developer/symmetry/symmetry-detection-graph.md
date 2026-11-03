@@ -2,241 +2,219 @@
 
 \usepackage{stmaryrd}
 ```
-# Symmetry Detection Graph
+# Symmetry detection graph
 
-This section describes how to construct the *symmetry detection graph* (SDG) of
-a PBES and hands it to GAP's `Digraphs` package to compute a generating set for
-the PBES's symmetry group. Specifically, we explain the differences of the
-implementation compared to the definitions and assumptions laid out in the
-corresponding paper.
+The `merc_pbes` crate of merc's mCRL2-based tools (under `tools/mcrl2`, not the
+[`merc_pbes`](https://mercorg.github.io/merc/merc_pbes/index.html) language
+crate) finds the symmetries of a PBES by constructing its *symmetry detection graph* (SDG) and
+handing it to GAP's `Digraphs` package, which computes a generating set of the
+graph's automorphism group. This page states the theorem that makes this sound
+(Theorem 1), defines the colouring that merc implements (Definitions 1 and 2),
+and explains where and why it differs from the paper: M. Bartels, M. Laveaux,
+T. Neele and T. Willemse, *Symmetry Reduction for Parameterised Boolean Equation
+Systems* [BLNW]. The paper
+defines the SDG $\mathcal{G}(\mathcal{E})$ and its colouring, and proves that
+the restriction of an SDG automorphism to the parameters is a symmetry. That
+proof rests on a few intermediate results that are referred to by their content
+below: an automorphism $h$ maps the right-hand side $\varphi_X$ of an equation
+to itself ($h(\varphi_X) \equiv \varphi_X$), it preserves vertex size, and it
+acts on every predicate formula as the induced parameter permutation
+($h(\varphi) \equiv \pi(\varphi)$).
 
-```todo
-Add paper when it is published
-```
+<a id="thm-symmetries-from-automorphisms-blnw"></a>**Theorem 1 (symmetries from automorphisms; [BLNW]).** If $h$ is an automorphism of
+the coloured SDG $\mathcal{G}(\mathcal{E})$, then the permutation $\pi$ of the
+parameters that $h$ induces is a symmetry of $\mathcal{E}$.
 
-## Colouring Bound Variables
+Theorem 1 is proved in [BLNW] for the paper's SDG; it is not formalised in Lean.
+merc's colouring refines the paper's in the ways below, and each section argues
+why the steps of the proof still hold, or, for the update edges and PVI colours,
+why the refinement is what makes them hold.
 
-Definition 3 sets `C(x) = par` for a PBES parameter and `C(x) = x` for every
+<a id="def-vertex-colouring"></a>**Definition 1 (vertex colouring).** merc colours a vertex $v$ of the SDG by the
+pair $(C(v), C_{RHS}(v))$, where $C_{RHS}(v) = \{X \mid v = \varphi_X\}$ and
+$C(v)$ is
+
+- for a parameter: its sort;
+- for a bound variable: its sort and its de Bruijn index;
+- for a PVI $X(\ldots)$: the predicate variable $X$;
+- for a quantifier, `lambda` or comprehension: its kind and the sorts it binds;
+- for a function application or connective: its head symbol;
+- for a machine-number literal: its value.
+
+<a id="def-edge-colouring"></a>**Definition 2 (edge colouring).** merc colours an edge by one of
+
+- a set of argument positions $\{i \mid t = t_i\}$, for an argument $t$ of a
+  non-commutative function $f(t_1, \ldots, t_k)$;
+- a multiplicity $k$, for an operand that occurs $k > 1$ times in a flattened
+  sum or product;
+- a non-empty set of *update roles* $\subseteq \{\mathit{pvi}, \mathit{data},
+  \mathit{par}\}$, for the edges of an update vertex;
+- no colour, for every other edge.
+
+## Colouring bound variables
+
+The paper's vertex colouring $C_\Phi$ sets `C(d_k) = par` for a PBES parameter and `C(x) = x` for every
 other variable, i.e. every quantifier- or abstraction-bound variable. In the
 theory we assume structural alpha renaming, i.e., bound variables can be
-consistently renamed without changing the meaning of the PBES. The
-implementation checks that all bound variables have unique names and do not
-overlap with parameters, and then colours a bound variable
-`VertexColour::BoundVariable` by its **sort only**, dropping the name entirely:
+consistently renamed without changing the meaning of the PBES, and in
+practice the names of bound variables are arbitrary, so colouring them by name
+would discard most real symmetries.
 
-```rust
-BoundVariable(SortExpression),
-```
+The implementation therefore uses *de Bruijn indices*: a bound variable is
+identified by its sort and by where it is bound, namely the number of variables
+bound between the occurrence and its binder, so `0` is the innermost one.
 
-Colouring by sort is coarser than either alternative the paper considered — it
-identifies branches up to α-equivalence, relying on the surrounding edge and
-quantifier structure to pin down which bound variable is which — but it is what
-makes the construction find anything on real input.
 
-## Parameter Colour
+A multi-variable binder `forall x, y. φ` binds like the nested `forall x. forall
+y. φ`, so the variables are numbered in list order. Binders that list the same
+variables in a different order are therefore not identified, which is sound but
+forgoes some reduction.
 
-Definition 3 gives *every* parameter vertex the same colour, `par`, with no
-further distinction. `VertexColour::Parameter` instead carries the parameter's
-sort. This is required since mCRL2 allows operator overloading on sorts alone.
+The indices only help if vertices are *identified* up to alpha-equivalence as
+well. Hash-consed mCRL2 terms are not, since renaming a bound variable gives a
+different term, and also identify two different variables of the same name when
+a binder shadows a parameter. Vertices are therefore interned by their
+*structure*: bound variables are leaves keyed by sort and index,
+and an inner vertex is keyed by its colour and by its (already interned)
+children together with their edge colours. Consequently
 
-## `C_eq`
+- `exists a. a > n` and `exists b. b > n` are one vertex;
+- a bound variable can reuse the name of a parameter. Occurrences are resolved by
+  lexical scope with the innermost binder winning;
+- every variable must be a parameter or bound, otherwise the PBES is not
+  closed and an error is reported.
 
-Beyond `VertexColour`, `Sdg` tracks a second, orthogonal component per
-vertex:
+A PVI is keyed by its name and the vertices of its arguments, and its update
+vertices are created at the point where it is visited, since its arguments can
+refer to variables bound at that position.
 
-```rust
-/// `C_eq(v)`: the set of equation indices whose right-hand side reaches
-/// this vertex, indexed by `NodeIndex::index()`.
-equations: Vec<BTreeSet<usize>>,
-```
+## Parameter colour
 
-`to_gap_graph` folds both together into the colour it actually hands GAP
-(`format!("{:?}|{:?}", colours[v], equations[v])`), so two vertices only end
-up in the same GAP colour class when they agree on *both* `C(v)` and which
-equations' right-hand sides reach them. `C_eq` has no counterpart in
-Definition 3, and this is not a harmless extra restriction — it is what
-makes Lemma 2 (`h(φ_X) = φ_X`) actually hold. The paper's proof of Lemma 2
-argues purely from vertex size (Lemma 1: automorphisms preserve `|φ|`, and
-`φ_X` is the largest subformula appearing in itself), which only rules out
-mapping `φ_X` to a *proper* subformula of itself. It says nothing about
-`h(φ_X) = φ_Y` for the equally-sized right-hand side of a *different*
-equation `Y` — nothing in Lemma 1's size argument distinguishes two
-right-hand sides of the same size, so as stated the proof doesn't exclude
-that case, and Corollary 1 (which needs `h(φ_X) = φ_X` exactly, for every
-`X`, to conclude `π` is a symmetry for the *whole* PBES) would not go
-through without it.
+The paper gives *every* parameter vertex the same colour, `par`, with no
+further distinction (it assumes a single data type $D$ for all terms). merc's colour of a parameter
+is its sort (Definition 1). This is required since mCRL2 allows operator overloading on sorts alone.
 
-With `C_eq` in the colouring, `h(φ_X) = φ_Y` forces `C_eq(φ_X) = C_eq(φ_Y)`.
-Since every subformula's equation-set is a subset of the equation-sets of
-the vertices reaching it, and `φ_X`/`φ_Y` are each the (unique, by size) top
-vertex of their own right-hand side, `C_eq(φ_X) = C_eq(φ_Y)` forces each to
-be a subformula of the other — hence `φ_X = φ_Y`, hence `X = Y`. This is
-presumably what the draft's own margin note is circling when it weighs the
-same idea and sets it aside: *"Some special colour for right-hand side makes
-the proof easier. Otherwise, it could also be that only the semantics lemma
-is needed."* The semantics lemma (Lemma 3) establishes that automorphisms
-preserve semantics *given* `h(φ_X) = φ_X`; it does not by itself establish
-that equality. `C_eq` is what does.
+## The right-hand-side colour
+
+Besides $C(v)$, every vertex has the paper's second, orthogonal colour component
+$C_{RHS}(v)$. The colour handed to GAP is the pair of both (Definition 1), so two
+vertices are only in the same colour class when they agree on $C(v)$ and on
+$C_{RHS}(v)$.
+Equations with syntactically identical right-hand sides share a vertex, which
+is why this is a set.
+
+It is what makes $h(\varphi_X) \equiv \varphi_X$ hold: a size
+argument alone cannot exclude $h(\varphi_X) = \varphi_Y$ for the equally-sized
+right-hand side of a *different* equation $Y$, but
+$C_{RHS}(h(\varphi_X)) = C_{RHS}(\varphi_X)$ and $X \in C_{RHS}(\varphi_X)$
+then force $\varphi_X = \varphi_Y$.
 
 ## Edge colours
 
-Definition 3's edge-colouring case for a function application is:
+The paper's edge-colouring case for a function application is:
 
 $$C(f(t_1,\dots,t_k), t) = \begin{cases} \star & \text{if } f \text{ commutative} \\ \{i \mid \exists i \in [k].\ t = t_i\} & \text{else} \end{cases} \qquad C(e) = \star \text{ for all other edges } e \in E$$
 
-The second margin note on the same page calls this out as unclear: *"This no
-colour label `*` is not that clearly explained like this. The type of the
-colour function is a bit awkward. Could we make it into a partial function
-and not colour the edges that get a `*` now? Should we split up the
-colouring functions for vertices and edges?"* The implementation answers all
-three questions. `EdgeColour` is its own type, split out from
-`VertexColour`:
-
-```rust
-enum EdgeColour {
-    Argument(BTreeSet<usize>),  // C(f(t1,...,tk), ti) for non-commutative f
-    Uncoloured,                 // the paper's `*`: commutative-function args
-                                 // and every other edge
-    Update(BTreeSet<UpdateRole>),
-}
-```
-
-`Argument` matches Definition 3's set-of-positions case exactly, including the
+Its type is a little awkward, since the same colour function $C$ is used for
+vertices and edges, and the "no colour" label $\star$ is not a real colour. merc
+colours edges separately (Definition 2). The set of argument positions matches
+the paper's set-of-positions case exactly, including the
 "repeated argument" reading: `n - n` produces one edge to `n` coloured `{1,2}`,
-not two parallel edges. `Uncoloured` merges the paper's two `\star` cases
-(commutative-function arguments, and "all other edges") into one variant that is
-never given a label at all — the "partial function" reading the margin note asks
-about, implemented as an enum variant rather than an `Option`.
+not two parallel edges. "No colour" merges the paper's two $\star$ cases
+(commutative-function arguments, and all other edges).
 
 ## Update edges
 
-Definition 3 gives an update vertex $X_{i,k}$ three separate edges: to
+The paper gives an update vertex $X_{i,k}$ three separate edges: to
 $\mathsf{PVI}(X,i)$, to $\mathsf{data}(X,i,k)$, and to $d_k$. None of these
-three edge families is covered by Definition 3's explicit edge-colouring
-cases (those only handle a function application's argument edges), so they
-all fall under the catch-all `C(e) = \star` for "all other edges" — the
+three edge families is covered by the explicit edge-colouring
+case (it only handles a function application's argument edges), so they
+all fall under the catch-all $C(e) = \bot$ for "all other edges" — the
 paper leaves all three uncoloured.
 
-The implementation instead gives each one a distinct role, via a colour that
-is a *set* of roles:
+merc instead gives each one a distinct role, with a colour that is a *set* of
+roles (Definition 2).
 
-```rust
-enum UpdateRole { Pvi, Data, Par }
-Update(BTreeSet<UpdateRole>)
-```
 
-This isn't just a labelling nicety. Lemma 3's `X(t_1,...,t_n)` case silently
-relies on an automorphism `h` mapping the `data(X,i,k)` edge to another
+This isn't just a labelling nicety. The proof of $h(\varphi) \equiv \pi(\varphi)$,
+in its `X(t_1,...,t_n)` case, silently relies on an automorphism `h` mapping the `data(X,i,k)` edge to another
 `data` edge, and the `d_k` edge to another parameter edge — the proof reads
 off `h(t_k) = t'_{k'}` from "the edge `(X_{i,k}, t_k)`" as if `data` edges
 can only map to `data` edges, and separately reads `π(d_k) = d_{π(k)}` off
 the `(X_{i,k}, d_k)` edge the same way. With every update edge uncoloured
-`⋆`, as Definition 3 literally has it, nothing forces that alignment: an
+$\bot$, as the paper literally has it, nothing forces that alignment: an
 automorphism respecting only `C(e) = \star` on all three families is free to
 map a `data` edge onto what was a `par` edge (or a `pvi` edge) at the image
 vertex, and the proof's implicit "same kind of edge" step is unjustified.
-Colouring `Pvi`/`Data`/`Par` separately is what makes that step actually
-true — an automorphism must map a `{Data}`-coloured edge to a
-`{Data}`-coloured edge, by the definition of a coloured graph automorphism
-(Definition 7: `C((h(v), h(u))) = C((v, u))`).
+Colouring the three roles separately is what makes that step actually true: an
+automorphism must map a $\{\mathit{data}\}$-coloured edge to a
+$\{\mathit{data}\}$-coloured edge, by the definition of a coloured graph automorphism
+(`C((h(v), h(u))) = C((v, u))`).
 
 A secondary effect of the same mechanism: when a PVI copies a parameter
 unchanged — e.g. `X(n)` inside `X`'s own equation — the `data` and parameter
 targets are the *same* vertex, and the graph (per the paper's prose) has
 "exactly one edge per vertex pair", so two of the three edges must coincide.
-`add_update_vertices` inserts each of the three logical targets and lets
-`add_or_merge_edge`/`merge_edge_colour` union the role sets when two land on
-the same vertex, so a parameter-copy update vertex gets exactly two edges: a
-`{Pvi}`-coloured edge to the PVI vertex, and a combined `{Data, Par}`-coloured
-edge to the shared target — never three edges, and never a silently dropped
-role (`test_update_edge_combines_roles_on_parameter_copy`).
+When two of the three targets are the same vertex, their role sets are united, so
+a parameter-copy update vertex gets exactly two edges: a
+$\{\mathit{pvi}\}$-coloured edge to the PVI vertex, and a
+$\{\mathit{data}, \mathit{par}\}$-coloured edge to the shared target; never
+three edges, and never a dropped role.
 
-## PVI Variables have no Name
+## PVI colours carry the predicate variable name
 
-Definition 3 colours a PVI vertex by the specific predicate variable it
-instantiates: `C(X(t_1,...,t_n)) = X`. `VertexColour::Pvi` is a bare,
-dataless variant — every PVI vertex, whether it's an occurrence of `X(...)`
-or of an unrelated `Y(...)`, gets the *same* colour:
-
-```rust
-Pvi,
-```
-
-Lemma 3's PVI case needs the name: it concludes
+The paper colours a PVI vertex by the predicate variable it instantiates,
+$C_\Phi(X(t_1,\dots,t_n)) = X$, and so does merc (Definition 1). This is
+necessary: a uniform colour for every PVI would drop the one thing the PVI case
+of the proof relies on: it concludes
 $\llbracket h(X(\bar t))\rrbracket\eta\delta = \llbracket \bar t'\rrbracket\delta \in \eta(X)$
-— membership in $\eta(X)$ specifically, not $\eta(Y)$ for whatever predicate
-variable the image happens to instantiate — which is not the same as
-$\llbracket \pi(X(\bar t))\rrbracket\eta\delta$ for an arbitrary automorphism
-`h` unless the image PVI also instantiates `X`. Dropping the name from the
-colour removes the one thing in Definition 3 that pins that down structurally.
-
-In practice, every counterexample this would predict — an automorphism
-mapping an `X(...)` PVI vertex onto a `Y(...)` PVI vertex — has to survive
-the rest of the colouring too: `C_eq` (two PVI vertices for different
-predicate variables essentially never reach the identical set of equations
-by accident) and the fact that every PVI vertex is anchored to the same
-global parameter vertices via its update vertices' `Par`-coloured edges make
-such a swap hard to construct. No concrete counterexample is known. But
-soundness resting on that as an accident of the rest of the construction is
-not the same as the construction being sound by design. Adding the
-predicate-variable name to `VertexColour::Pvi` would cost nothing — it can
-only remove candidate automorphisms, never introduce one that wasn't already
-being considered, and Definition 5's group action already preserves
-predicate variable names, so no genuine symmetry is lost by requiring `h` to
-preserve them too. This is currently documented as a known gap on
-`VertexColour::Pvi` rather than fixed, pending a decision on whether to
-tighten it.
+— membership in $\eta(X)$ specifically — which only equals
+$\llbracket \pi(X(\bar t))\rrbracket\eta\delta$ if the image PVI also
+instantiates $X$. With a uniform colour, `X = Y(n) && Z(n)` has an automorphism
+swapping `Y(n)` and `Z(n)` even though `Y` and `Z` are defined differently.
+Carrying the name rules this out by construction, and cannot lose a genuine symmetry since the group action
+on predicate formulas preserves predicate variable names.
 
 ## Deduplicating repeated PVI occurrences
 
-Definition 3 introduces update vertices `updates(E) = {X_{i,k} | X ∈
+The paper introduces update vertices `updates(E) = {X_{i,k} | X ∈
 bnd(E), 1 ≤ i ≤ npred(X), 1 ≤ k ≤ n}` — one fan of update vertices for
 *every* occurrence $i$ of a predicate variable instance in a right-hand side,
-counted with multiplicity. `build_sdg` instead deduplicates PVI occurrences
-by ATerm identity before generating update vertices:
-
-```rust
-let mut seen_pvis: HashSet<PbesPropositionalVariableInstantiation> = HashSet::new();
-for pvi in pbes_expression_pvi(&formula.copy()) {
-    if seen_pvis.insert(pvi.clone()) {
-        builder.add_update_vertices(e, &pvi, n)?;
-    }
-}
-```
-
-So `Y(n) && Y(n)` gets one fan of update vertices, not two
-(`test_update_vertices_are_never_deduplicated` — the name refers to what
-*does* still get its own fan: two occurrences that are only *equal*, not the
-same ATerm). The code comment gives the soundness argument the paper doesn't
-need to make, because it doesn't perform this optimization: *"The paper
-instead ranges `i` over all `npred(X)` occurrences, which would give the
-shared PVI vertex two identical fans of update vertices; those only enlarge
-`Aut(G)` by permutations of the duplicated fans, which restrict to the
-identity on parameters."* — i.e. the extra automorphisms Definition 3 would
+counted with multiplicity. merc instead generates one fan per distinct PVI term,
+so `Y(n) && Y(n)` gets one fan of update vertices, not two. This is sound: the
+paper's construction would give the shared PVI vertex two identical fans, and
+those only enlarge the automorphism group by permutations of the duplicated fans,
+which restrict to the identity on parameters. So the extra automorphisms the paper's construction would
 admit here are exactly the ones that don't change the induced symmetry, so
 dropping them costs nothing.
 
 ## Constructs beyond the paper's grammar
 
-Definition 1's grammar has exactly two Boolean connectives ($\vee, \wedge$)
+The paper's predicate formula grammar has exactly two Boolean connectives ($\vee, \wedge$)
 and single-variable PBES-level $\forall/\exists$. The implementation covers
 the larger surface a real mCRL2 PBES can contain:
 
-- **`not`/`imp`** get their own `Connective` colours alongside `And`/`Or`.
-  `imp` is treated as non-commutative — its two edges are coloured
-  `Argument({1})`/`Argument({2})` — since `a => b ≠ b => a`.
+- **`!` and `=>`** get their own colours alongside `&&` and `||`. `=>` is treated
+  as non-commutative, its two edges coloured $\{1\}$ and $\{2\}$, since
+  `a => b` differs from `b => a`.
 - **Associative-commutative flattening**: an `&&`/`||`/`+`/`*`/`max`/`min`
-  chain is flattened into a *single* n-ary vertex with one uncoloured edge per
-  leaf, via `is_flat_operator`/`flatten_associative`.
-- **Multi-variable and data-level binders**: `VertexColour::Quantifier`
-  carries a `Vec<SortExpression>` rather than Definition 3's single `D`, and
-  the same colouring is reused for data-level `lambda` and set/bag
-  comprehension binders (`Quantifier::Lambda`/`Comprehension`), which have no
-  counterpart at all in Definition 1's term grammar.
-- **Machine number literals** get a dedicated `MachineNumber(u64)` colour, so
+  chain is flattened into a *single* n-ary vertex, as suggested by the paper. The
+  paper's $\mathsf{sub}^\sharp$ is a *set*, which silently forgets how often an
+  operand occurs. This is harmless for the idempotent operators
+  (`&&`, `||`, `max`, `min`), which get one uncoloured edge per distinct leaf,
+  but unsound for `+` and `*`: `n + n + m` and `n + m + m` would have the same
+  graph, so swapping `n` and `m` would be reported as a symmetry. For these the edge to a repeated operand is coloured by its multiplicity $k$
+(Definition 2).
+- **Multi-variable and data-level binders**: a quantifier is coloured by the list
+  of sorts it binds rather than the paper's single sort `D`, and the same
+  colouring is used for data-level `lambda` and set and bag comprehension
+  binders, which have no counterpart in the paper's term grammar.
+- **Machine-number literals** are coloured by their value, so
   an automorphism can't conflate two different constants — the paper's
   grammar treats `b : B` and other terms abstractly and never discusses
   literals.
+- **Parameter and bound-variable sorts** are part of the colour (see above),
+  since mCRL2 overloads function symbols by sort.
 - **`where` clauses are rejected outright** with an error. PBES standard
   form never produces one, but a user-supplied PBES can; the paper's grammar
   has no such construct to begin with.
