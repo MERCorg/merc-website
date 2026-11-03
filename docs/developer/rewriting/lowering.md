@@ -1,40 +1,55 @@
 # Lowering
 
-This step walks the typed representation produced by [sort
-inference](../typechecking/sort-inference.md) and emits aterm
-[`merc_data::DataExpression`](https://mercorg.github.io/merc/merc_data/struct.DataExpression.html)s,
+Lowering is the last phase of [type checking](../typechecking/index.md). It
+walks the typing produced by [sort inference](../typechecking/sort-inference.md)
+and emits maximally shared terms (Definition 2), of type
+[`DataExpression`](https://mercorg.github.io/merc/merc_data/),
 materializing the implicit coercions as explicit function applications: numeric
 up-casts become the Appendix-B constructor chains, and finite-to-unbounded
 container widenings become the corresponding set/bag constructors. Number
 literals are lowered to their exact Appendix-B constructor chains via
 arbitrary-precision binary encoding, and all binders (`lambda`,
-`forall`/`exists`, set/bag comprehensions, `where`) are lowered too. The phase
-assembles the full
-[`Mcrl2DataSpecification`](https://mercorg.github.io/merc/merc_data/struct.Mcrl2DataSpecification.html).
+`forall`/`exists`, set/bag comprehensions, `where`) are lowered too. The phase assembles the full
+`Mcrl2DataSpecification`,
+the conditional rewrite system (Definition 3) of the specification's data
+equations, by
+[`DataSpecification::lower_data_specification`](https://mercorg.github.io/merc/merc_typecheck/).
+This page defines which ground instances of the polymorphic operations lowering
+generates (Definition 12).
 
-## Materializing ground content at lowering time
+## Materializing ground content at lowering time {#materializing-ground-content-at-lowering-time}
 
 For a polymorphic container/function-update operation, lowering recovers the
 concrete operation from the operator name together with the sort that
 inference assigned the occurrence — see [the polymorphic
-signature](../typechecking/system-specification.md#the-polymorphic-signature) for why
+signature](../typechecking/system-specification.md#definitions) for why
 inference itself never resolves these to a concrete overload. Container,
 function-update and comparison operations stay schemes for as long as type
 checking runs, and a rewriter has no representation for a scheme: lowering
 needs concrete constructors, mappings and equations for exactly the container,
 function-update and comparison instantiations the specification actually uses.
-It builds them fresh, once, for that call:
+**Definition 12 (ground instances).** The *ground instances* of a specification
+are the least set of instances of the [templates](../typechecking/polymorphism.md)
+(Type checking, Definition 14) that contains
 
-- **A syntactic pass** walks a worklist fixpoint over
-  [`spec`](https://mercorg.github.io/merc/merc_typecheck/data_specification/struct.DataSpecification.html#structfield.spec)'s own textual sort occurrences (a `Set(S)` pulls in `FSet(S)`; a
+- the container template for every container sort that occurs in the
+  specification, written or inferred, and the templates that it needs, such as
+  `FSet(S)` for `Set(S)`;
+- the function-update template for the arity of every function sort that
+  occurs;
+- the comparison template for every sort.
+
+Lowering builds them, once, as follows:
+
+- **A syntactic pass** computes the least set of Definition 12 by a worklist over the sorts written in
+the specification (a `Set(S)` pulls in `FSet(S)`; a
   function sort pulls in the function-update operators for its arity), and
   independently, uniformly, over *every* sort for the comparison operators.
   For each sort it discovers, it clones the matching template's declarations
   and equations and **substitutes** the concrete sort for the template's bound
   type variable — a syntactic substitution walk over the template's own AST,
   not a fresh parse and not a fresh resolution pass: the substituted sort node
-  is already a resolved [`Resolved`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Resolved)`(name, `[`SortId`](https://mercorg.github.io/merc/merc_syntax/type.SortId.html)`)` node, copied in from the user's
-  own already-resolved sort tree.
+  is already resolved, copied from the user's own resolved sort tree.
 - **A second pass over already-typed equations** catches what the syntactic
   scan cannot see. The element sort of a `List`/`Set`/`Bag` enumeration
   literal (`[1, 2, 3]`, `{1, 2}`) or a bare numeral is never written down
@@ -46,23 +61,16 @@ It builds them fresh, once, for that call:
   recorded sorts and replays the same worklist against them, diffed against
   what the syntactic pass already covered.
 - **Each generated equation is then specialized from its template's
-  already-proven typing by substitution — one [`TemplateInstantiation`](https://mercorg.github.io/merc/merc_typecheck/lowering/instantiate/struct.TemplateInstantiation.html)
-  per generated block — instead of re-running inference.** This is the same
-  "prove once, specialize by substitution" step described in [Checking a
-  template's equations once,
-  rigidly](../typechecking/polymorphism.md#checking-a-templates-equations-once-rigidly),
-  applied at the point the specialization is actually needed. Two
-  instantiations of the same template (`Bag(Nat)`, `Bag(D)`) never collide the
-  way an earlier design's grouping machinery had to guard against, because
-  neither one is independently *inferred* at all — there is nothing left to
-  tie or disambiguate.
+  already-proven typing by substitution instead of re-running inference.** This is Type checking, Theorem 2 ([Checking a template once](../typechecking/polymorphism.md#checking-a-template-once)),
+applied where the specialisation is needed. Two instances of the same template
+(`Bag(Nat)`, `Bag(D)`) never collide, because neither is inferred: there is
+nothing to tie or disambiguate.
 - **One unconditional, inference-free structural safety net remains**, run
   once over the generated content
   merged with `system` (so a generated equation referencing a basic-sort
   operator by name resolves correctly). Nothing else ever checks this
   content's own names and sort references — substitution, not inference,
-  produced it — so this stays a raw, syntactic walk: every sort reference is
-  declared and every [`Resolved`](https://mercorg.github.io/merc/merc_syntax/enum.SortExpressionKind.html#variant.Resolved) node indexes a real sort declaration; no `var`
+  produced it — so this stays a raw, syntactic walk: every sort reference is declared and resolves to a real sort declaration; no `var`
   block declares a variable twice; the free variables of a condition and
   right-hand side occur in the left-hand side; and no constructor targets a
   function sort (the one 15.1.7 signature rule this generated content does
@@ -70,11 +78,10 @@ It builds them fresh, once, for that call:
   template, not a false positive). It deliberately does **not** re-check
   constructor/mapping disjointness or duplicate-constant-different-sort: `[]:
   List(D)` and `[]: List(E)` are meant to both exist once both sorts occur,
-  the same intentional exemption the pre-lowering signature never had to make
-  because these declarations were never resolved into it at all. Should never
+  an exemption the signature never needs, because these declarations are never
+resolved into it. Should never
   fail for a well-formed template — a failure here is a bug in the generator,
-  not in anything the user wrote, so it panics rather than threading a
-  [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html) through lowering.
+  not in anything the user wrote, so it panics rather than returning an error through lowering.
 
 ## Binary-aterm compatibility
 
@@ -84,7 +91,7 @@ pool is maximally shared, a symbol the checker constructs must be
 byte-for-byte identical to the same symbol read from a binary file, so that
 the two share one pooled term. Already-typed binary input therefore bypasses
 the checker entirely: both routes converge on the same
-[`merc_data::Mcrl2DataSpecification`](https://mercorg.github.io/merc/merc_data/struct.Mcrl2DataSpecification.html), and downstream code is oblivious to the
+`Mcrl2DataSpecification`, and downstream code is oblivious to the
 provenance.
 
 Lowering is invoked *after* type checking rather than inside it, so callers
@@ -125,7 +132,7 @@ constructor and equation terms worth checking separately.
 
 ### Canonical sort representatives
 
-[Normalization](../typechecking/name-resolution.md#normalization) erases alias names, and not
+[Normalization](../typechecking/name-resolution.md#aliases) erases alias names, and not
 only in the alias section
 (`sort B = A;` becomes `B = Nat` once `A = Nat`) — every *use* of the alias is
 expanded too, so a mapping declared as `C -> Bool` lowers with `List(Nat)`

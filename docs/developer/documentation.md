@@ -67,8 +67,8 @@ is therefore linked, at least at its first mention on the page.
   [`LabelledTransitionSystem`](https://mercorg.github.io/merc/merc_lts/struct.LabelledTransitionSystem.html),
   and crates or modules to their `index.html`. Link a method through the page
   of its type, `struct.LabelledTransitionSystem.html#method.relabel`; `lychee`
-  checks the page but not the fragment, so the method name is checked by
-  review. Do not link source files, which move with every refactoring.
+  checks the fragment as well, so a renamed method fails the build. Do not
+  link source files, which move with every refactoring.
 - Lean: link a declaration to the spec file that states it in
   [merc-verified](https://github.com/MERCorg/merc-verified), until the doc-gen4
   site is published and declarations can be linked directly.

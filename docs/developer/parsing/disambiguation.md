@@ -4,7 +4,12 @@
 \usetikzlibrary{babel,arrows.meta,positioning,calc}
 \usepackage{tikz-qtree}
 ```
-# Grammar-Ambiguity
+# Grammar ambiguity
+
+This page defines the one ambiguity of the mCRL2 grammar that
+[`merc_syntax`](https://mercorg.github.io/merc/merc_syntax/index.html) resolves
+after parsing, and how it is resolved. The pages of this section share one
+numbering of definitions and theorems.
 
 mCRL2's concrete syntax overloads tokens between the process algebra and the
 data language — most notably `.` (process sequential composition vs. the data
@@ -19,6 +24,28 @@ delimiter (no brackets, no `[...]`) bounding how far it extends, so the
 parser happily keeps consuming `.`/`+`/`||` as data operators straight past
 the point where the concrete syntax actually meant to hand control back to
 the process algebra.
+
+**Definition 1 (swallowed process operand).** In a parsed process expression, a
+condition `c -> P` *swallows* a process operand if its condition $c$ is a data
+expression of the form $e_1 \mathbin{op} e_2$, with $op$ one of `.`
+(at), `+` (addition) or `||` (disjunction), in which $e_1$ is an application
+$a(\ldots)$ of a declared action or process name $a$, possibly under `hide`,
+`block` or `allow`.
+
+**Definition 2 (recovery).** Recovery replaces a swallowing condition by the
+process expression that its tokens denote when the swallowed operator is read as
+the process operator for the same token: sequential composition for `.`, choice
+for `+` and parallel composition for `||`, with the precedence of process
+operators. So `(a(...) . e) -> P` becomes `a(...) . (e -> P)`, and a swallowing
+condition `(a(...) + e) -> P` in the `then` branch of an enclosing condition
+`c -> ...` becomes the choice `(c -> a(...)) + (e -> P)`; likewise for `||`.
+Recovery applies recursively, also inside the `then` branch of a condition.
+
+Recovery is performed by
+[`disambiguate_process_specification`](https://mercorg.github.io/merc/merc_typecheck/),
+before a process specification is [type checked](../specification/index.md). It
+only needs to know which names are declared as actions or processes, not which of
+the two they are.
 
 The `.` case: `a(1) . true -> delta` should parse as an unconditional action
 step `a(1)` followed by a guarded `delta`, but `a(1) . true` reads just as
@@ -53,8 +80,8 @@ reading the grammar commits to:
 
 </div>
 
-`disambiguate` recognizes `a` as a declared action name, peels it off the
-`At` chain, and rebuilds the `Sequence`/`Condition` shape on the right.
+Recovery recognises `a` as a declared action name, peels it off the `At` chain,
+and rebuilds the `Sequence`/`Condition` shape on the right.
 
 The `+`/`||` case is the same swallow one level up, and it compounds: `(true)
 -> a(1) + (false) -> b(2)` should be two guarded choice branches, but the
@@ -93,8 +120,7 @@ addition) as the two `Condition`s the concrete syntax intended:
 </div>
 
 Note the misparse nests one `Condition` inside the other's `then`, not a
-top-level `Binary { op: Add, .. }` sitting beside it — `disambiguate` has to
-walk into an as-parsed `then` looking for exactly this shape before it can split
+top-level addition sitting beside it, so recovery has to walk into an as-parsed `then` looking for exactly this shape before it can split
 it back into sibling `Choice` branches. `P || cond -> Q` (parallel composition
 guarding a condition) is the same bug with `Disj`/`Parallel` in place of
 `Add`/`Choice`. A single-action `hide`/`block`/`allow` application can also
@@ -110,7 +136,7 @@ misparsed — `rename` happens to already parse correctly there (the malformed
 `DataExpr` attempt backs out, falling back to its own dedicated grammar rule)
 with nothing to fix.
 
-See also [Precedence: Pest (merc) vs. dparser (mCRL2)](precedence.md) for a
+See also [Precedence](precedence.md) for a
 different, unrelated class of grammar disagreement between the two parsers —
 this page is about a token-overload ambiguity `merc_syntax` resolves itself
 after parsing; that one is about the two parsers disagreeing on what a single

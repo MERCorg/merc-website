@@ -1,8 +1,17 @@
 # Condition caching
 
-a condition cache is a bounded, LRU-evicting map from a condition side's
-already-substituted term to its normal form, filled lazily as the computation
-runs. It exists because checking a conditional rewrite rule's `if` clause can
+Checking the conditions of a conditional rewrite rule (Definition 3) can
+normalise the same term many times. This page defines the condition cache that
+both [`SabreRewriter`](https://mercorg.github.io/merc/merc_sabre/)
+and `InnermostRewriter`
+use against this (Definition 11), and what it does and does not catch.
+
+**Definition 11 (condition cache).** A *condition cache* is a map, bounded in size
+and evicting the least recently used entry, from the instance $u\sigma$ of a
+condition side to its normal form. It is filled while rewriting, and consulted
+whenever a condition side is normalised.
+
+The cache exists because checking a conditional rewrite rule's `if` clause can
 end up normalising the *same* subterm more than once: two sibling rules whose
 conditions disagree on the same computed value:
 
@@ -18,13 +27,12 @@ can still blow up combinatorially once those conditions are checked repeatedly
 this way — oddeven.rec is the sharpest example: `2^(n+1)-1` rewrite steps
 uncached versus `n+1` cached.
 
-Both engines carry a cache unconditionally now (`::new` picks a default
-capacity; `::with_condition_cache_capacity` picks another). Since the key is
+Both engines always have a cache: `new` uses a default capacity, and
+`with_condition_cache_capacity` another. Since the key is
 the *substituted* term rather than any rule's unsubstituted pattern, which
 variable name a rule happens to bind an argument to never enters into the
-lookup at all — `merc_aterm`'s maximal sharing means two structurally equal
-substituted terms are the same interned value (structural equality is
-pointer equality), so two entirely unrelated rules that happen to compute
+lookup at all. By maximal sharing (Definition 2), two structurally equal
+substituted terms are the same term, so two entirely unrelated rules that happen to compute
 the same concrete subterm still share the cache entry.
 
 ## Static caching
@@ -71,8 +79,7 @@ concrete `SNat` value from many separate, structurally unrelated call
 sites — not from two rules announced at the same match, which is the only
 shape a static analysis of the rule set could ever predict ahead of time,
 since it depends on which concrete numbers a particular run actually
-produces, not on how the rules are written. Measured: `InnermostRewriter`
-with only the (removed) static cache took 19,698,985 rewrite steps on
+produces, not on how the rules are written. Measured: `InnermostRewriter` with only a static cache took 19,698,985 rewrite steps on
 evalexpr.rec's EVAL terms; with the dynamic cache, 8,265,493 — well under
 half, all from catching exactly this pattern.
 

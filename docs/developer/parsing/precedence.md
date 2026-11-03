@@ -1,5 +1,10 @@
 # Precedence
 
+This page compares how merc and mCRL2 group data expressions that mix prefix and
+infix operators, defines the grouping merc's parser produces (Definition 4,
+Theorem 3), and relates the case where the two differ to the literature on
+operator-precedence conflicts.
+
 merc and mCRL2 implement the same documented `DataExpr` precedence table.
 In particular, quantifiers and lambdas have low precedence, while operators
 such as negation, unary minus, and cardinality have high precedence. They
@@ -39,47 +44,44 @@ type check — depending on which tool reads it.
 
 ### merc's Pratt parser
 
-Pest's `PrattParser::expr` is a standard operator-precedence-climbing
-algorithm (`nud`/`led`, see
-[`pratt_parser.rs`](https://github.com/pest-parser/pest/blob/master/pest/src/pratt_parser.rs)
-in the `pest` crate): a prefix operator's `nud` recurses into its operand
-with a right-binding-power of `own_precedence - 1`, and *that recursive call*
-is the only thing bounding what the operand consumes.
+merc's parser uses pest's `PrattParser`, a standard operator-precedence-climbing
+algorithm. The precedence *levels* of the data operators are those of the mCRL2
+grammar: among others, the quantifiers and `lambda` have level 1, `&&` has
+level 4, and `!` and unary minus have level 12.
 
-Tracing `! exists d: D . X && Y` (using merc's actual levels: `!` is 130,
-`exists` is 20, `&&` is 50 — see `precedence.rs:123-144`):
+**Definition 4 (operand of a prefix operator).** In precedence climbing, the
+operand of a prefix operator of level $\ell$ is the longest expression that
+starts directly after it and contains no infix operator of level at most $\ell$
+outside brackets, and outside the operands of nested prefix operators.
 
-1. Top level sees `!` (prec 130) and recurses for its operand with
-   `rbp = 129`.
-2. That recursion's `nud` immediately sees `exists` (prec 20, *not* 130 —
-   each prefix uses its own precedence regardless of what's enclosing it) and
-   recurses again for *its* operand with `rbp = 19`.
-3. That innermost call parses `X`, then loops: is `19 < prec(&&) = 50`? Yes —
-   so it consumes `&& Y` right there, before ever returning to the `exists`
-   or `!` frames. The existential's operand is already `X && Y` by the time
-   anyone outside it gets a say.
-4. Both outer frames just wrap what they were handed: `exists d:D. (X && Y)`,
-   then `!(...)`.
+**Theorem 3 (nested prefix operators).** If a prefix operator of level $\ell_1$ is
+directly followed by a prefix operator of level $\ell_2 < \ell_1$, then the operand
+of the inner operator extends over every infix operator of level greater than
+$\ell_2$ that follows, regardless of $\ell_1$; the outer operator's operand is the
+inner operator applied to that operand.
 
-The general rule this illustrates: **once a Pratt parser enters a prefix
-operator's `nud`, how far that operator's operand extends is governed solely
-by its own precedence — an enclosing, tighter-binding prefix cannot claw back
-what a nested, looser-binding prefix already consumed.** This is a structural
-property of precedence-climbing for chained prefix operators with
-non-monotonic precedence (tight-then-loose), not a merc-specific bug, and it
-is exactly why `!X && Y` (no quantifier in between) behaves the "expected"
-way — there `!`'s own `rbp = 129` is what bounds the operand, `129 <
-prec(&&) = 50` is false, so `!` stops right after `X` and `&&` ends up
-outside it, giving `(!X) && Y`. The quantifier is what changes the outcome,
-by handing control to its own, much lower, precedence partway through.
+*Proof idea.* Precedence climbing parses the operand of a prefix operator by one
+recursive call, bounded by that operator's own level. The inner call, bounded by
+$\ell_2$, consumes every following infix operator of a higher level before it
+returns, and the outer call, bounded by $\ell_1$, only receives the result. This
+is a property of precedence climbing in general, not of merc.
+
+For `!exists d: D . X && Y` the outer operator is `!` (12), the inner `exists`
+(1), and `&&` (4) has a higher level than `exists`, so the result is
+`!(exists d: D . (X && Y))`. Without the quantifier, `!X && Y`, the operand of
+`!` stops before `&&`, whose level 4 is not above 12, giving `(!X) && Y`. The
+quantifier is what changes the outcome, by handing control to its own, much
+lower, level partway through.
 
 ### mCRL2's reading, verified against the real parser
 
 dparser is a GLR (generalized LR) parser: on genuinely ambiguous input it
 builds a shared packed parse forest of every valid derivation and then
 disambiguates using the priority/associativity annotations — a different
-mechanism from a single bounded recursive descent. We verified the actual
-behavior directly against mCRL2:
+mechanism from a single bounded recursive descent.
+
+**Observation.** Run against mCRL2's parser, these expressions are grouped as
+follows:
 
 | expression | mCRL2 parses it as |
 |---|---|
