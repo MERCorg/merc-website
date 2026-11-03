@@ -70,9 +70,10 @@ The `write-docs` skill has the full conventions; the essentials:
 
 - Dense, exact prose. Every claim about behaviour or correctness is traceable
   to code, a Lean declaration, or a cited paper.
-- Formal content as numbered, bold-labelled paragraphs:
-  `**Definition 3 (name).**`, `**Theorem 5 (name).**`, `**Conjecture 1 (name).**`.
-  Numbering runs across the pages of a section; reuse it exactly.
+- Formal content as numbered, bold-labelled paragraphs with an anchor:
+  `<a id="def-name"></a>**Definition 3 (name).**`. Numbering is per page and
+  per kind; a statement on another page is referenced by a link naming that
+  page, `[Parity games, Definition 1](parity_games.md#def-parity-game)`.
 - State the proof status of every theorem: proved in Lean (with the
   declaration name), proved on paper, or open.
 - Every public Rust item and Lean declaration a page names is linked, at

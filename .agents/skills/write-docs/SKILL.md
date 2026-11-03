@@ -31,8 +31,9 @@ Nothing on a page is written from memory or from another page alone.
 - **Papers.** When a definition or algorithm comes from a paper, have the
   paper's own numbering at hand (Definition 4.2, Algorithm 3) so the page can
   cite it exactly.
-- **Sibling pages.** Read the other pages of the section: their definitions,
-  numbering, notation and macros are what the new text continues.
+- **Sibling pages.** Read the other pages of the section: their definitions
+  and their anchors (to link to), notation and macros are what the new text
+  continues.
 
 If the code, the Lean statement and an existing page disagree, say so to the
 user instead of silently picking one.
@@ -51,22 +52,34 @@ user instead of silently picking one.
 
 ## 3. Definitions, theorems and proof status
 
-- Formal statements are bold-labelled paragraphs, numbered within a section
-  (all pages under one `nav` group share one numbering):
+- Formal statements are bold-labelled paragraphs at the start of a line,
+  numbered per page and per kind (definitions, theorems, conjectures, ...
+  each from 1), and each preceded by an anchor named after the concept,
+  with a prefix for the kind (`def-`, `thm-`, `lem-`, `cor-`, `prop-`,
+  `conj-`):
 
   ```markdown
-  **Definition 9 (filter).** For an Even vertex $v$, ...
+  <a id="def-filter"></a>**Definition 1 (filter).** For an Even vertex $v$, ...
 
-  **Theorem 7 (termination).** H-B terminates from every initial profile.
+  <a id="thm-termination"></a>**Theorem 2 (termination).** H-B terminates from every initial profile.
 
-  **Conjecture 1 (polynomial iterations).** ...
+  <a id="conj-polynomial-iterations"></a>**Conjecture 1 (polynomial iterations).** ...
   ```
 
-  Continue the numbering of the sibling pages; never renumber existing
-  items without updating every reference to them across the section (grep
-  for `Definition <n>` / `Theorem <n>`).
+  The anchor is inline HTML rather than `{#id}`, because `lychee` reads
+  `id`s from HTML in Markdown but `{#id}` only on headings. Keep an anchor
+  when renumbering or rewording, so that links to it stay valid.
+- A bare `Definition 3` means Definition 3 of the current page. A statement
+  on another page is always referenced by a link that names the page:
+  `[Parity games, Definition 1](parity_games.md#def-parity-game)`, or for
+  several, `[Strategy improvement, Definitions 1 to 7](strategy-improvement.md#def-relevance-order)`
+  linking the first. Inserting a statement renumbers its own page only:
+  update the references on that page, and grep the site for links to that
+  page whose number changed.
 - Define every symbol before its first use, or refer to the definition that
   introduces it. Use one notation per concept across the section.
+- A paper's own numbers are always cited with the paper, "([EG21],
+  Definition 4)", so they cannot be mistaken for the page's.
 - A statement is either a definition, a theorem (with its status), or
   explicitly marked as a conjecture or an open question. Do not present an
   unproved claim as a fact in prose.

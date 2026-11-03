@@ -37,13 +37,17 @@ concrete claim the change makes, check it there:
 If a sibling checkout is missing, say which claims you could not verify.
 
 **2. Numbering and cross-references.** Definitions, theorems and
-conjectures are numbered across a section's pages
-(`**Definition 9 (filter).**`). Check that new items continue the numbering
-without gaps or duplicates, and that every `Definition n`, `Theorem n`,
-step or paper reference in the change points at the item with that number
-and name in the page that defines it. Derive the numbering from the files;
-grep the whole section. These silently drift when one page is edited and its
-neighbours are not.
+conjectures are numbered per page and per kind, from 1, each label at the
+start of a line and preceded by an anchor
+(`<a id="def-filter"></a>**Definition 1 (filter).**`). Check that a page's
+numbers have no gaps or duplicates, that every statement has an anchor named
+after its concept, and that every bare `Definition n` or `Theorem n` points at
+the item with that number on the same page. A statement on another page must
+be a link naming that page, `[Page title, Definition n](page.md#def-name)`,
+whose number and name match the target; a bare number meant for another page
+is a finding. A paper's numbers must be cited with the paper. Derive the
+numbering from the files, and when a page was renumbered, grep the site for
+links into it.
 
 **3. Links.**
 
