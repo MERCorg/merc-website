@@ -35,7 +35,7 @@ modules, plugins or LaTeX binaries, run the setup steps of the
    ```bash
    comm -23 \
      <(cd docs && find . -name "*.md" | sed 's#^\./##' | sort) \
-     <(grep -oE '"[A-Za-z0-9/_.-]+\.md"' zensical.toml | tr -d '"' | sort -u)
+     <(sed -n '/^nav = \[/,/^\]/p' zensical.toml | grep -oE '"[A-Za-z0-9/_.-]+\.md"' | tr -d '"' | sort -u)
    ```
 
    Any path this prints exists in `docs/` but has no nav entry in
