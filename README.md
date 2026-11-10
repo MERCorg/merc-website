@@ -53,7 +53,7 @@ measured on `zielonka.md`'s algorithm, 119em with the default right-justify
 vs. 52.6em with the override below — which just means more of the block
 sits past the fold, behind a horizontal scrollbar. Redefine the comment
 inline instead: `\algrenewcommand{\algorithmiccomment}[1]{$\triangleright$
-#1}` (see `docs/developer/symmetry/canonicalize-orbit.md`), and move a
+#1}` (see `docs/model-checking/symmetry/canonicalize-orbit.md`), and move a
 `\Comment` whose text is long relative to its `\State` line to its own
 `\Statex \Comment{...}` line so it doesn't dominate that line's width. A
 generous `paperwidth` in `math_preamble` (e.g. `paperwidth=40cm`) is still

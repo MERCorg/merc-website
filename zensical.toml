@@ -10,66 +10,87 @@ nav = [
   { Home = "index.md" },
   { Tools = [
     "tools/reordering.md",
+    "tools/mbt-protocol.md",
   ] },
-  { Development = [
-    "developer/general.md",
-    "developer/testing.md",
-    "developer/documentation.md",
-    { "Symmetry" = [
-      "developer/symmetry/symmetry-detection-graph.md",
-      "developer/symmetry/canonicalize-orbit.md",
-    ] },
-    { "Rewriting" = [
-      "developer/rewriting/aterms.md",
-      "developer/rewriting/conditional-rewriting.md",
-      "developer/rewriting/set-automaton.md",
-      "developer/rewriting/machine-numbers.md",
-      "developer/rewriting/condition-caching.md",
-      "developer/rewriting/lowering.md",
-    ] },
+  { Language = [
     { "Parsing" = [
-      "developer/parsing/disambiguation.md",
-      "developer/parsing/performance.md",
-      "developer/parsing/precedence.md",
-      "developer/parsing/source_map.md",
+      "language/parsing/disambiguation.md",
+      "language/parsing/performance.md",
+      "language/parsing/precedence.md",
+      "language/parsing/source_map.md",
     ] },
     { "Type Checking" = [
-      "developer/typechecking/index.md",
-      "developer/typechecking/name-resolution.md",
-      "developer/typechecking/desugaring.md",
-      "developer/typechecking/signature.md",
-      "developer/typechecking/system-specification.md",
-      "developer/typechecking/polymorphism.md",
-      "developer/typechecking/sort-inference.md",
+      "language/typechecking/index.md",
+      "language/typechecking/name-resolution.md",
+      "language/typechecking/desugaring.md",
+      "language/typechecking/signature.md",
+      "language/typechecking/system-specification.md",
+      "language/typechecking/polymorphism.md",
+      "language/typechecking/sort-inference.md",
       { "Inference" = [
-        "developer/typechecking/inference/ranked-backtracking.md",
-        "developer/typechecking/inference/unification.md",
+        "language/typechecking/inference/ranked-backtracking.md",
+        "language/typechecking/inference/unification.md",
       ] },
-      "developer/typechecking/typing-info.md",
+      "language/typechecking/typing-info.md",
     ] },
     { "Specification" = [
-      "developer/specification/index.md",
-    ] },
-    { "PBES" = [
-      "developer/pbes/pbes.md",
-      "developer/pbes/counter_examples.md",
-      "developer/pbes/srf_transformation.md",
-      "developer/pbes/pres.md",
-    ] },
-    { "Parity games" = [
-      "developer/parity/parity_games.md",
-      "developer/parity/strategy-improvement.md",
-      "developer/parity/exponential-constructions.md",
-      "developer/parity/hybrid-strategy-improvement.md",
-    ] },
-    { "Symbolic" = [
-      "developer/symbolic/saturation.md",
-      "developer/symbolic/zielonka.md",
-      "developer/symbolic/partial-solving.md",
+      "language/specification/index.md",
     ] },
   ] },
-  { Maintainers = [
-    "maintainers/publishing.md",
+  { Rewriting = [
+    { "Terms" = [
+      "rewriting/terms/aterms.md",
+      "rewriting/terms/protection-sets.md",
+    ] },
+    { "Rewriters" = [
+      "rewriting/rewriters/conditional-rewriting.md",
+      "rewriting/rewriters/set-automaton.md",
+      "rewriting/rewriters/innermost.md",
+      "rewriting/rewriters/jitty.md",
+      "rewriting/rewriters/condition-caching.md",
+    ] },
+    { "Data" = [
+      "rewriting/data/machine-numbers.md",
+      "rewriting/data/enumeration.md",
+      "rewriting/data/quantifiers.md",
+      "rewriting/data/lowering.md",
+    ] },
+  ] },
+  { "Model checking" = [
+    { "PBES" = [
+      "model-checking/pbes/pbes.md",
+      "model-checking/pbes/counter_examples.md",
+      "model-checking/pbes/srf_transformation.md",
+      "model-checking/pbes/pres.md",
+    ] },
+    { "Symmetry" = [
+      "model-checking/symmetry/symmetry-detection-graph.md",
+      "model-checking/symmetry/canonicalize-orbit.md",
+    ] },
+    { "Parity games" = [
+      "model-checking/parity/parity_games.md",
+      "model-checking/parity/strategy-improvement.md",
+      "model-checking/parity/exponential-constructions.md",
+      "model-checking/parity/hybrid-strategy-improvement.md",
+    ] },
+    { "Symbolic" = [
+      "model-checking/symbolic/saturation.md",
+      "model-checking/symbolic/zielonka.md",
+      "model-checking/symbolic/partial-solving.md",
+      "model-checking/symbolic/copy-nodes.md",
+    ] },
+  ] },
+  { Benchmarks = [
+    "benchmarks/index.md",
+    "benchmarks/rewriting.md",
+    "benchmarks/parsing.md",
+    "benchmarks/symbolic.md",
+  ] },
+  { Contributing = [
+    "contributing/general.md",
+    "contributing/testing.md",
+    "contributing/documentation.md",
+    "contributing/publishing.md",
   ] },
   { Links = [
     { "Issue Tracker" = "https://github.com/MERCorg/merc/issues" },
@@ -82,6 +103,7 @@ nav = [
 language = "en"
 features = [
   "navigation.instant",
+  "navigation.tabs",
 ]
 
 [[project.theme.palette]]
@@ -104,3 +126,49 @@ toggle.name = "Switch to dark mode"
 use_pygments = true
 [project.markdown_extensions.pymdownx.superfences]
 [project.markdown_extensions.latex_math]
+
+# URLs of pages that moved; merc and merc-verified cite the old ones.
+[project.plugins.redirects.redirect_maps]
+"developer/documentation.md" = "contributing/documentation.md"
+"developer/general.md" = "contributing/general.md"
+"developer/parity/exponential-constructions.md" = "model-checking/parity/exponential-constructions.md"
+"developer/parity/hybrid-strategy-improvement.md" = "model-checking/parity/hybrid-strategy-improvement.md"
+"developer/parity/parity_games.md" = "model-checking/parity/parity_games.md"
+"developer/parity/strategy-improvement.md" = "model-checking/parity/strategy-improvement.md"
+"developer/parsing/disambiguation.md" = "language/parsing/disambiguation.md"
+"developer/parsing/performance.md" = "language/parsing/performance.md"
+"developer/parsing/precedence.md" = "language/parsing/precedence.md"
+"developer/parsing/source_map.md" = "language/parsing/source_map.md"
+"developer/pbes/counter_examples.md" = "model-checking/pbes/counter_examples.md"
+"developer/pbes/pbes.md" = "model-checking/pbes/pbes.md"
+"developer/pbes/pres.md" = "model-checking/pbes/pres.md"
+"developer/pbes/srf_transformation.md" = "model-checking/pbes/srf_transformation.md"
+"developer/rewriting/aterms.md" = "rewriting/terms/aterms.md"
+"developer/rewriting/condition-caching.md" = "rewriting/rewriters/condition-caching.md"
+"developer/rewriting/conditional-rewriting.md" = "rewriting/rewriters/conditional-rewriting.md"
+"developer/rewriting/enumeration.md" = "rewriting/data/enumeration.md"
+"developer/rewriting/innermost.md" = "rewriting/rewriters/innermost.md"
+"developer/rewriting/jitty.md" = "rewriting/rewriters/jitty.md"
+"developer/rewriting/lowering.md" = "rewriting/data/lowering.md"
+"developer/rewriting/machine-numbers.md" = "rewriting/data/machine-numbers.md"
+"developer/rewriting/protection-sets.md" = "rewriting/terms/protection-sets.md"
+"developer/rewriting/quantifiers.md" = "rewriting/data/quantifiers.md"
+"developer/rewriting/set-automaton.md" = "rewriting/rewriters/set-automaton.md"
+"developer/specification/index.md" = "language/specification/index.md"
+"developer/symbolic/partial-solving.md" = "model-checking/symbolic/partial-solving.md"
+"developer/symbolic/saturation.md" = "model-checking/symbolic/saturation.md"
+"developer/symbolic/zielonka.md" = "model-checking/symbolic/zielonka.md"
+"developer/symmetry/canonicalize-orbit.md" = "model-checking/symmetry/canonicalize-orbit.md"
+"developer/symmetry/symmetry-detection-graph.md" = "model-checking/symmetry/symmetry-detection-graph.md"
+"developer/testing.md" = "contributing/testing.md"
+"developer/typechecking/desugaring.md" = "language/typechecking/desugaring.md"
+"developer/typechecking/index.md" = "language/typechecking/index.md"
+"developer/typechecking/inference/ranked-backtracking.md" = "language/typechecking/inference/ranked-backtracking.md"
+"developer/typechecking/inference/unification.md" = "language/typechecking/inference/unification.md"
+"developer/typechecking/name-resolution.md" = "language/typechecking/name-resolution.md"
+"developer/typechecking/polymorphism.md" = "language/typechecking/polymorphism.md"
+"developer/typechecking/signature.md" = "language/typechecking/signature.md"
+"developer/typechecking/sort-inference.md" = "language/typechecking/sort-inference.md"
+"developer/typechecking/system-specification.md" = "language/typechecking/system-specification.md"
+"developer/typechecking/typing-info.md" = "language/typechecking/typing-info.md"
+"maintainers/publishing.md" = "contributing/publishing.md"

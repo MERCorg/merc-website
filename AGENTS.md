@@ -29,7 +29,7 @@ code looks wrong). `../merc-verified/EXPORTS.md` lists every exported Lean
 declaration and which ones are headline theorems; its `AGENTS.md` explains
 which Lean files are human-vetted specs and which are generated proofs.
 
-What belongs where, following `docs/developer/documentation.md`:
+What belongs where, following `docs/contributing/documentation.md`:
 
 - **rustdoc** (in `../merc`): pre- and postconditions of functions, item-level
   behaviour. Pages link to it, they do not restate it.
@@ -42,10 +42,17 @@ What belongs where, following `docs/developer/documentation.md`:
 
 - `docs/index.md` — landing page.
 - `docs/tools/` — usage of the command-line tools.
-- `docs/developer/` — one directory per topic (parsing, typechecking,
-  rewriting, pbes, parity, symbolic, symmetry, ...), each a multi-page
-  section in `nav`.
-- `docs/maintainers/` — release and publishing procedures.
+- `docs/language/` — parsing, type checking and specifications.
+- `docs/rewriting/` — `terms/`, `rewriters/` and `data/`.
+- `docs/model-checking/` — PBES, symmetry, parity games and symbolic solving.
+- `docs/benchmarks/` — all measured results (timings, node and step counts),
+  since they change with the code; other pages state the design and link here.
+- `docs/contributing/` — development guidelines, testing, documentation
+  conventions, and release and publishing procedures.
+
+The directories under `docs/` mirror the groups in `nav`. `merc` and
+`merc-verified` cite page URLs, so moving a page needs an entry in the
+`redirects` table of `zensical.toml`.
 - `docs/stylesheets/extra.css` — site CSS, including the `.latex-math-block`
   classes the math plugin emits.
 - `linearisation/` — draft pages not yet under `docs/` or in `nav`.
@@ -66,25 +73,35 @@ check on `site/`. Run the `docs-check` skill before saying a change is done.
 
 ## Writing conventions (summary)
 
-The `write-docs` skill has the full conventions; the essentials:
+The pages are precise but not overwhelming, in an academic register. The
+house style is `.agents/skills/write-docs/style.md` (structure rules S1 to
+S7, register rules R1 to R8); the `write-docs` skill has the mechanics. The
+essentials:
 
-- Dense, exact prose. Every claim about behaviour or correctness is traceable
-  to code, a Lean declaration, or a cited paper.
+- The reader has a graduate background in formal methods and has not read
+  merc's code. Every claim about behaviour or correctness is traceable to
+  code, a Lean declaration, or a cited paper.
+- A concept page is layered: abstract, definitions, algorithm, theorems,
+  implementation, references. One topic per page, about 300 lines at most.
 - Formal content as numbered, bold-labelled paragraphs with an anchor:
   `<a id="def-name"></a>**Definition 3 (name).**`. Numbering is per page and
   per kind; a statement on another page is referenced by a link naming that
-  page, `[Parity games, Definition 1](parity_games.md#def-parity-game)`.
-- State the proof status of every theorem: proved in Lean (with the
-  declaration name), proved on paper, or open.
-- Every public Rust item and Lean declaration a page names is linked, at
-  least at its first mention: `lychee` catches a stale link, not a stale name.
-- Rust items link to rustdoc:
+  page, `[Parity games, Def. 1](parity_games.md#def-parity-game)`.
+- State the proof status of every theorem: proved in Lean, proved on paper,
+  or open. The Lean declaration is linked in the statement's own paragraph,
+  `` [`Name`](https://github.com/MERCorg/merc-verified/blob/main/<path>.lean) ``;
+  no "theorem | Lean" tables, and no Lean code inlined as pseudocode.
+- Rust links are for key items only: the crate once per page and the public
+  types that realise a definition, as
   `` [`Item`](https://mercorg.github.io/merc/<crate>/<path>/<kind>.Item.html) ``.
-- Lean claims link to their spec file:
-  `` [`Name`](https://github.com/MERCorg/merc-verified/blob/main/<path>.lean) ``.
+  Other public items are plain code spans, checked against `../merc` by hand.
+  No private items, fields, files or line numbers.
+- Declarative present tense; no em-dash asides, fillers or rhetorical
+  contrast; italics only for a term being defined, bold only for statement
+  labels; papers cited by key with a `## References` section.
 - `merc` in lowercase in prose; `MERC` only in the project or org name.
 - Math in `$...$` and fenced `` ```math `` blocks; pseudocode as
-  `` ```math algorithm `` with `algpseudocode`.
+  `` ```math algorithm `` with `algpseudocode`, in the page's notation.
 
 ## Agent setup
 
@@ -103,7 +120,7 @@ follows them.
 
 | skill | use it to |
 |---|---|
-| `write-docs` | write or edit a page: scope, structure, definitions and theorems, linking to rustdoc and Lean, adding a page to `nav` |
-| `review-docs` | review new or edited pages for correctness against the sources and for consistency (read-only) |
-| `docs-check` | run the CI checks locally: strict build, orphaned pages, link check |
+| `write-docs` | write or edit a page: house style (`style.md`), structure, definitions and theorems, linking to rustdoc and Lean, adding a page to `nav` |
+| `review-docs` | review new or edited pages for correctness against the sources, consistency and house style (read-only) |
+| `docs-check` | run the CI checks locally: strict build, orphaned pages, link check, and the advisory style lint |
 | `docs-preview` | set up the environment and serve a live preview |
