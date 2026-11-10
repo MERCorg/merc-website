@@ -83,7 +83,7 @@ So `@zero_ == @one_` is never checked again for `Bag(Nat)` or `Bag(D)`. A
 specification that uses several element sorts pays for checking each template
 once. The result of checking a template, its type variables and the typing of
 each equation, is kept on the checking context. At
-[lowering](../rewriting/lowering.md#materializing-ground-content-at-lowering-time),
+[lowering](../../rewriting/data/lowering.md#materializing-ground-content-at-lowering-time),
 every ground instance is typed by substitution into it, instead of by inference.
 
 All templates are checked while a

@@ -302,7 +302,7 @@ keeps it polymorphic, so that instantiation ([Type variables and polymorphic sch
 
 The typing of an equation maps every expression node to its resolved sort and
 every name occurrence to the chosen overload, keyed by the node numbering of
-constraint generation, which [lowering](../rewriting/lowering.md) walks again.
+constraint generation, which [lowering](../../rewriting/data/lowering.md) walks again.
 
 Because the search ranks typings of the whole equation at once, it accepts some
 specifications that a local algorithm rejects as ambiguous: for example, it

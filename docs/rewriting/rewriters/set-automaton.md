@@ -35,7 +35,7 @@ step of
 [`SabreRewriter`](https://mercorg.github.io/merc/merc_sabre/struct.SabreRewriter.html),
 the **S**et **A**utomaton **B**ased **R**ewrit**e** engine of
 [`merc_sabre`](https://mercorg.github.io/merc/merc_sabre/index.html). It
-assumes [Terms, Definitions 1 and 2](aterms.md#def-term) and
+assumes [Terms, Definitions 1 and 2](../terms/aterms.md#def-term) and
 [Conditional rewriting, Definitions 1 to 3](conditional-rewriting.md#def-conditional-rewrite-system).
 
 ## Positions and patterns
@@ -256,7 +256,7 @@ most of the mCRL2 data types it measures.
 [`SetAutomaton::new`](https://mercorg.github.io/merc/merc_sabre/struct.SetAutomaton.html#method.new)
 follows Construct with the symbols of the rules, the machine-word operations
 that the specification evaluates natively, and one stand-in symbol under which every
-machine number is matched (see [Machine numbers](machine-numbers.md)). It
+machine number is matched (see [Machine numbers](../data/machine-numbers.md)). It
 differs from Definition 8 in how a derivative is partitioned and in the choice
 of labels.
 
@@ -337,7 +337,7 @@ a pattern is still anchored at the root.
 
 #### Example: `+` on machine-word `Pos` {#example-on-machine-word-pos}
 
-The machine-word encoding ([Machine numbers, Definition 2](machine-numbers.md#def-machine-word-encoding)) gives `Pos` addition six equations:
+The machine-word encoding ([Machine numbers, Definition 2](../data/machine-numbers.md#def-machine-word-encoding)) gives `Pos` addition six equations:
 
 ```
 (@most_significant_digit(w1) + @most_significant_digit(w2)) = ...;
@@ -368,7 +368,7 @@ $\varepsilon$, and with the announcement test the next fresh subtree, from
 whichever rule, joins it. Every arithmetic and comparison operator on `Pos` and
 `Nat` in this encoding has such a pair of successor equations, so some class
 stays open at the root and the construction does not terminate. The binary
-encoding ([Machine numbers, Definition 1](machine-numbers.md#def-binary-encoding)) has no second representation of the same values, so
+encoding ([Machine numbers, Definition 1](../data/machine-numbers.md#def-binary-encoding)) has no second representation of the same values, so
 its root goals are told apart after a few observations and the construction
 terminates with either test.
 

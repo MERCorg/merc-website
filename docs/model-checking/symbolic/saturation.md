@@ -32,9 +32,8 @@ only touches positions $p$ and below, and only then used as a child of a node
 one position higher. So a node is built once, in its final form. The
 breadth-first frontiers, which are much larger than the final diagram for
 asynchronous models, never exist. What it buys is therefore mostly *peak
-memory*, and only indirectly time. On the pregenerated `anderson.4` fixture,
-`Saturation` peaks at about 13.5k nodes in the manager against about 134k for
-`BreadthFirst`.
+memory*, and only indirectly time; see
+[Symbolic benchmarks, Peak nodes](../../benchmarks/symbolic.md#peak-nodes).
 
 ## Setting
 
@@ -212,7 +211,7 @@ node in progress *outside* the diagram, and builds it once:
 * The accumulator $A$ is a sorted `Vec` of `(value, continuation)` pairs. A fired
   pair $(j, f)$ is united into the *continuation* of $j$, $A(j) \cup f$, and nothing
   else is touched. When $f$ is already contained in $A(j)$, which is what happens
-  in about 85% of the cases, the union returns $A(j)$ and builds no node at all. Values
+  in most cases, the union returns $A(j)$ and builds no node at all. Values
   that were not in the node are inserted at their sorted position.
 * The node is built once, at the end, from the largest value to the smallest, which
   is the order in which an ascending spine can be built without a union. The `Vec` is
@@ -231,32 +230,21 @@ node in progress *outside* the diagram, and builds it once:
     Uniting into a node, and saturating a spine as "the saturated tail, with the head
     in front of it", looks simpler, and it avoids the accumulator. It was implemented
     first, and it is several times slower and creates several times as many nodes.
-    Measured on the `anderson.6` example, the accumulator against the node-based
-    version, which does the *same number of firings and merges* (about 2.3 to 2.5
-    million):
-
-    | | accumulator | node as accumulator |
-    |---|---:|---:|
-    | nodes in the manager after saturating (the result has 49,037) | 0.67M | 2.60M |
-    | `Saturate` bodies (cache misses) | 153k | 787k |
-    | merge = union on a node, nodes created | – | 1.32M |
-    | merge = union on a continuation, nodes created | 0.37M | – |
-    | `head ∪ tail` unions, nodes created | – | 0.60M |
-    | time | about 2 s | about 4 s |
+    Both versions do the *same number of firings and merges*, see
+    [Symbolic benchmarks, Accumulator against node](../../benchmarks/symbolic.md#accumulator-against-node).
 
     Two things go wrong:
 
     * **A merge into a node is much more expensive than a merge into a continuation.**
       `Union(n, (j, f, ∅))` first builds the single-entry node, and then walks and
       rebuilds the spine of $n$ up to $j$, while the continuation of $j$ is all that
-      changes. The merges are the same, and 85% of them change nothing, but each of them costs
+      changes. The merges are the same, and most of them change nothing, but each of them costs
       the single node and a walk over the spine, and each one that does change
       something leaves a copy of the spine prefix behind.
     * **Saturating the tail first saturates every suffix of every spine on its own.**
       Each suffix is a memoised call with its own fixpoint and its own intermediate
       spine. The values of the head can still write to the tail, so the head has to be
-      united with an already saturated tail (`head ∪ tail`, 338k times here, which is
-      a quarter of everything that is built), and a value whose continuation grows
+      united with an already saturated tail (`head ∪ tail`), and a value whose continuation grows
       because of the head has to be fired again, on a continuation that is superseded
       once more by the next head. The accumulator has every value of the spine in it
       from the start, so a value that receives a result before it has fired fires once,
@@ -378,20 +366,19 @@ states that no group can leave.
 Saturation produces *more* garbage than the other strategies, by construction:
 every time the continuation of a value of a node that is still converging obtains a
 better union, the superseded version is a dead, but still interned, entry of the unique
-table. On the `anderson.6` example the result has 49,037 nodes, while saturating it
-creates about 0.67 million, more than 90% of which are garbage. Nothing
+table, and [most of the nodes that it creates](../../benchmarks/symbolic.md#garbage)
+are garbage. Nothing
 is removed from the table until the manager collects garbage. With oxidd's
-`manager-pointer` backend that never happens, and a large industrial model took
-hours for individual rounds, with the operation counts of those rounds only a few times
-those of the fast ones: the per-operation cost had grown because every lookup went into an
-ever growing table. With the default `manager-index` backend, which starts a
-collection in the background at 95% of the capacity, the same rounds took minutes,
-with identical state counts. So:
+`manager-pointer` backend that never happens, and the cost per operation grows on
+large models, because every lookup goes into an
+ever growing table. The default `manager-index` backend, which starts a
+collection in the background at 95% of the capacity, does not have this problem.
+So:
 
 * merc's `oxidd` dependency must not enable `manager-pointer`.
 * The capacity of `manager-index` is a hard limit, not a hint. Size
-  `--oxidd-node-capacity` for the *peak of live nodes* with headroom (the model
-  above needed a few hundred million), not for the final diagram size.
+  `--oxidd-node-capacity` for the *peak of live nodes* with headroom, not for the
+  final diagram size.
 * The `metrics` cargo feature logs `manager.num_inner_nodes()` and the statistics
   of the operation caches once per round. That is the way to compare peak sizes of
   strategies, more than the wall-clock time.

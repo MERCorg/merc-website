@@ -9,7 +9,7 @@ of [`Rule`](https://mercorg.github.io/merc/merc_sabre/struct.Rule.html)s with
 and the engines of [`merc_sabre`](https://mercorg.github.io/merc/merc_sabre/index.html)
 compute its normal forms; [The set automaton](set-automaton.md) describes how
 [`SabreRewriter`](https://mercorg.github.io/merc/merc_sabre/struct.SabreRewriter.html)
-finds the subterms to rewrite. It assumes [Terms, Definitions 1 and 2](aterms.md#def-term).
+finds the subterms to rewrite. It assumes [Terms, Definitions 1 and 2](../terms/aterms.md#def-term).
 
 ## Rewrite systems
 
@@ -34,7 +34,7 @@ the same sort have distinct values; this combines sufficient completeness
 
 The data equations of a specification are such a system, with the intended
 interpretation of the data types as model, and a rewriter computes normal forms
-of data expressions. [Lowering](lowering.md) produces this system from the data
+of data expressions. [Lowering](../data/lowering.md) produces this system from the data
 equations of a specification.
 
 ## Soundness, termination and confluence

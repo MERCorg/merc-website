@@ -6,7 +6,7 @@ and
 [`garage-ver.mcrl2`](https://github.com/MERCorg/merc/tree/main/examples/mCRL2/industrial/garage)
 — did not finish parsing in `merc_syntax`: one hung, the other stack-overflowed
 the process. Both parse and linearize with the reference mCRL2 toolset
-(`mcrl22lps`) in under a second, so this was never a problem with the
+(`mcrl22lps`), so this was never a problem with the
 specifications; it is a consequence of the way pest's PEG backtracking
 interacts with the if-then(-else) rules of `ProcExpr`. This page describes the
 two independent causes, defines the condition positions that the parser marks
@@ -58,9 +58,10 @@ proc P(v: Nat) =
 ;
 ```
 
-Measured with every condition already correctly identified (i.e. isolating
-this cause from the first one): *n* = 10 takes 165 ms; *n* = 20 does not finish
-in 3 s; *n* = 640 overflows the stack. This is exactly the shape of
+Even with every condition already correctly identified (i.e. isolating
+this cause from the first one), such a chain
+[soon stops finishing and eventually overflows the stack](../../benchmarks/parsing.md#before-marking-conditions).
+This is exactly the shape of
 `MLV.mcrl2`'s `ConfigurationMemory` process — a long `+`-chain where every
 term is its own bare (no-`<>`) condition.
 
@@ -131,16 +132,9 @@ so no code that computes spans needs to know about the markers.
 
 ### Result
 
-Parse times through `UntypedProcessSpecification::parse` (debug build). Neither
-specification finished before the markers were added:
-
-| Input                                             | Time   |
-|---------------------------------------------------|--------|
-| `MLV.mcrl2`                                       | 81 ms  |
-| `garage-ver.mcrl2`                                | 139 ms |
-| *n* = 640 chain of bare conditions (as above)     | 130 ms |
-| *n* = 1280                                        | 331 ms |
-| *n* = 2560                                        | 692 ms |
+Neither specification finished before the markers were added; with them both
+parse, as [Parsing benchmarks, After marking conditions](../../benchmarks/parsing.md#after-marking-conditions)
+records.
 
 Both specifications are part of the example test suite, and a 200-term chain of
 conditions and the dangling-else pairing have unit tests. No test checks the

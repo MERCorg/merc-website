@@ -40,7 +40,7 @@ specification* of a data specification consists of
 The ground instances of the polymorphic operations, such as
 `in: Nat # List(Nat) -> Bool` and its defining equations, are not part of it.
 They are generated, only for the sorts that actually occur, at
-[lowering](../rewriting/lowering.md#materializing-ground-content-at-lowering-time),
+[lowering](../../rewriting/data/lowering.md#materializing-ground-content-at-lowering-time),
 the point where a rewriter needs concrete symbols instead of schemes.
 
 <a id="def-reserved-names"></a>**Definition 2 (reserved names).** A user constructor or mapping may not be

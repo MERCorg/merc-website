@@ -74,7 +74,7 @@ which is exactly ordinary positional notation, but in base $2^{64}$ instead
 of base $2$. The digit functions are mappings, not constructors: the constructors
 of `Pos` are `@c1` and `@succ_pos`, so that a number built the generic way, with
 successors, still has a sort to belong to until it is rewritten to a digit chain
-(see [The set automaton](set-automaton.md#example-on-machine-word-pos) for a
+(see [The set automaton](../rewriters/set-automaton.md#example-on-machine-word-pos) for a
 consequence). `Nat`, `Int` and `Real` are built from this the same way they
 are built from the binary encoding: a `Nat` adds a representation of zero, an
 `Int` adds a sign, a `Real` pairs a numerator and denominator.
@@ -112,7 +112,13 @@ most significant word is non-zero.
 ### Performance
 
 The main usecase for the machine numbers is the efficiency of computing with
-numbers. Concretely, the gap is large enough to matter well before numbers get
-large: the bundled end-to-end tests record `sqrt(65535) * sqrt(65535) <= 65535`
-taking roughly 20 s to rewrite under the binary encoding against roughly 0.4 s
-under the machine-word one.
+numbers. The gap is
+[large enough to matter](../../benchmarks/rewriting.md#machine-numbers) well
+before numbers get large.
+
+Under the innermost rewriter, much of such a gap is not the cost of the
+encoding. The binary comparison is defined with an `if` that recurses in
+both branches, and innermost rewriting evaluates both, so comparing two binary
+numbers takes time linear in their value. The [jitty rewriter](../rewriters/jitty.md) only evaluates the selected branch;
+[Rewriting benchmarks, Rewriter comparison](../../benchmarks/rewriting.md#rewriter-comparison)
+compares the two encodings under both rewriters.

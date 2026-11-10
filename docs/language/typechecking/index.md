@@ -64,7 +64,7 @@ The passes, in the order the code runs them, are:
 
 During type checking, sorts are interned indices into one table, so sort
 equality is a single integer comparison, and typings are kept in side tables
-keyed by expression. Only the final [lowering](../rewriting/lowering.md) phase
+keyed by expression. Only the final [lowering](../../rewriting/data/lowering.md) phase
 produces the maximally shared term representation that the rest of merc, such as
 [`merc_sabre`](https://mercorg.github.io/merc/merc_sabre/index.html) and
 [`merc_explore`](https://mercorg.github.io/merc/merc_explore/index.html),

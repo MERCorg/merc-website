@@ -14,7 +14,8 @@ executed using `cargo clippy`.
 
 Micro-benchmarks can be executed using `cargo bench`. Additionally, we can also
 install `cargo-criterion` and run `cargo criterion` instead to keep track of
-more information such as changes over time.
+more information such as changes over time. Measured results are collected under
+[Benchmarks](../benchmarks/index.md).
 
 ### Profiling
 

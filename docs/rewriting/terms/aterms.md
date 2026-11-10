@@ -27,13 +27,14 @@ term first looks up a structurally equal term and returns it if it exists (*hash
 consing*). So terms form a directed acyclic graph in which common subterms are
 stored once, and **structural equality is pointer equality**: comparing or
 hashing a term is a single operation on its index, independent of its size. The
-rest of merc relies on this, for example the [condition cache](condition-caching.md),
+rest of merc relies on this, for example the [condition cache](../rewriters/condition-caching.md),
 whose keys are terms.
 
 Terms are garbage collected. The pool tracks a set of live *root* terms, and
 unreachable terms are reclaimed by mark and sweep. Every thread that constructs
 terms registers a thread-local pool with the global one, holding the *protection
-sets* with that thread's roots. Collection needs exclusive access: constructing a
+sets* with that thread's roots ([Protection sets](protection-sets.md) defines them
+and the invariant that makes them sound). Collection needs exclusive access: constructing a
 term takes a (recursive) read lock, and collection takes the write lock, marks
 the terms reachable from every registered protection set and sweeps the rest. It
 is triggered by a budget, derived from the free capacity of the pool, that

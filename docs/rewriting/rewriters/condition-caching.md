@@ -31,7 +31,7 @@ Both engines always have a cache: `new` uses a default capacity, and
 `with_condition_cache_capacity` another. Since the key is
 the *substituted* term rather than any rule's unsubstituted pattern, which
 variable name a rule happens to bind an argument to never enters into the
-lookup at all. By maximal sharing ([Terms, Definition 2](aterms.md#def-maximal-sharing)), two structurally equal
+lookup at all. By maximal sharing ([Terms, Definition 2](../terms/aterms.md#def-maximal-sharing)), two structurally equal
 substituted terms are the same term, so two entirely unrelated rules that happen to compute
 the same concrete subterm still share the cache entry.
 
@@ -79,9 +79,9 @@ concrete `SNat` value from many separate, structurally unrelated call
 sites — not from two rules announced at the same match, which is the only
 shape a static analysis of the rule set could ever predict ahead of time,
 since it depends on which concrete numbers a particular run actually
-produces, not on how the rules are written. Measured: `InnermostRewriter` with only a static cache took 19,698,985 rewrite steps on
-evalexpr.rec's EVAL terms; with the dynamic cache, 8,265,493 — well under
-half, all from catching exactly this pattern.
+produces, not on how the rules are written. The dynamic cache catches exactly
+this pattern; [Rewriting benchmarks, Condition caching](../../benchmarks/rewriting.md#condition-caching)
+measures what that saves on evalexpr.rec's EVAL terms.
 
 ## Scope: condition sides only
 
@@ -112,8 +112,7 @@ do **not** share `E`'s computation: the first condition's cache entry is
 keyed on the whole `not(E)`, never on `E` alone, so the second condition's
 lookup on bare `E` misses and recomputes it from scratch.
 
-Measured directly with a synthetic `slow(x)` spec of exactly this shape
-(`slow` takes `n` steps to normalise): `not(slow(x)) = true` alongside
-`slow(x) = true` takes 403 steps (`slow(x)` computed twice); both
-conditions written as `slow(x)` in full (no nesting) takes 201 (computed
-once, one cache hit).
+So `not(slow(x)) = true` alongside `slow(x) = true` computes `slow(x)` twice,
+whereas both conditions written as `slow(x)` in full (no nesting) compute it
+once, with one cache hit; see
+[Rewriting benchmarks, Condition caching](../../benchmarks/rewriting.md#condition-caching).

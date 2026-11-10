@@ -1,8 +1,8 @@
 # Lowering
 
-Lowering is the last phase of [type checking](../typechecking/index.md). It
-walks the typing produced by [sort inference](../typechecking/sort-inference.md)
-and emits maximally shared terms ([Terms, Definition 2](aterms.md#def-maximal-sharing)), of type
+Lowering is the last phase of [type checking](../../language/typechecking/index.md). It
+walks the typing produced by [sort inference](../../language/typechecking/sort-inference.md)
+and emits maximally shared terms ([Terms, Definition 2](../terms/aterms.md#def-maximal-sharing)), of type
 [`DataExpression`](https://mercorg.github.io/merc/merc_data/),
 materializing the implicit coercions as explicit function applications: numeric
 up-casts become the Appendix-B constructor chains, and finite-to-unbounded
@@ -11,7 +11,7 @@ literals are lowered to their exact Appendix-B constructor chains via
 arbitrary-precision binary encoding, and all binders (`lambda`,
 `forall`/`exists`, set/bag comprehensions, `where`) are lowered too. The phase assembles the full
 `Mcrl2DataSpecification`,
-the conditional rewrite system ([Conditional rewriting, Definition 1](conditional-rewriting.md#def-conditional-rewrite-system)) of the specification's data
+the conditional rewrite system ([Conditional rewriting, Definition 1](../rewriters/conditional-rewriting.md#def-conditional-rewrite-system)) of the specification's data
 equations, by
 [`DataSpecification::lower_data_specification`](https://mercorg.github.io/merc/merc_typecheck/).
 This page defines which ground instances of the polymorphic operations lowering
@@ -22,7 +22,7 @@ generates (Definition 1).
 For a polymorphic container/function-update operation, lowering recovers the
 concrete operation from the operator name together with the sort that
 inference assigned the occurrence — see [the polymorphic
-signature](../typechecking/system-specification.md#definitions) for why
+signature](../../language/typechecking/system-specification.md#definitions) for why
 inference itself never resolves these to a concrete overload. Container,
 function-update and comparison operations stay schemes for as long as type
 checking runs, and a rewriter has no representation for a scheme: lowering
@@ -30,7 +30,7 @@ needs concrete constructors, mappings and equations for exactly the container,
 function-update and comparison instantiations the specification actually uses.
 <a id="def-ground-instances"></a>**Definition 1 (ground instances).** The *ground instances* of a specification
 are the least set of instances of the templates
-([Type variables and polymorphic schemes, Definition 2](../typechecking/polymorphism.md#def-instance)) that contains
+([Type variables and polymorphic schemes, Definition 2](../../language/typechecking/polymorphism.md#def-instance)) that contains
 
 - the container template for every container sort that occurs in the
   specification, written or inferred, and the templates that it needs, such as
@@ -61,7 +61,7 @@ the specification (a `Set(S)` pulls in `FSet(S)`; a
   recorded sorts and replays the same worklist against them, diffed against
   what the syntactic pass already covered.
 - **Each generated equation is then specialized from its template's
-  already-proven typing by substitution instead of re-running inference.** This is [Type variables and polymorphic schemes, Theorem 1](../typechecking/polymorphism.md#thm-checking-a-template-once),
+  already-proven typing by substitution instead of re-running inference.** This is [Type variables and polymorphic schemes, Theorem 1](../../language/typechecking/polymorphism.md#thm-checking-a-template-once),
 applied where the specialisation is needed. Two instances of the same template
 (`Bag(Nat)`, `Bag(D)`) never collide, because neither is inferred: there is
 nothing to tie or disambiguate.
@@ -112,7 +112,7 @@ everything else about the case stays guarded.
 
 ### Structured sorts
 
-merc's [desugaring](../typechecking/desugaring.md) turns `sort D = struct …;` into an abstract
+merc's [desugaring](../../language/typechecking/desugaring.md) turns `sort D = struct …;` into an abstract
 sort `D` plus its constructor/recogniser/projection declarations, so `D` lands
 in the *sorts* section. The toolset instead keeps the declaration as an
 alias `D = SortStruct(…)` and leaves its sorts section empty. Every symbol
@@ -132,7 +132,7 @@ constructor and equation terms worth checking separately.
 
 ### Canonical sort representatives
 
-[Normalization](../typechecking/name-resolution.md#aliases) erases alias names, and not
+[Normalization](../../language/typechecking/name-resolution.md#aliases) erases alias names, and not
 only in the alias section
 (`sort B = A;` becomes `B = Nat` once `A = Nat`) — every *use* of the alias is
 expanded too, so a mapping declared as `C -> Bool` lowers with `List(Nat)`

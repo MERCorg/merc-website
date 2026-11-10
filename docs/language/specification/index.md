@@ -75,7 +75,7 @@ ordinary formula and `Real` for a quantitative one.
 
 PBESs and PRESs are both *equation systems*: a sequence of fixpoint equations
 over propositional variables, global variables, and an initial instantiation
-(see [PBES](../pbes/pbes.md) and [PRES](../pbes/pres.md)). They differ only in
+(see [PBES](../../model-checking/pbes/pbes.md) and [PRES](../../model-checking/pbes/pres.md)). They differ only in
 their formulas.
 
 <a id="def-kind-of-equation-system"></a>**Definition 3 (kind of equation system).** A kind of equation system is given by
