@@ -74,10 +74,15 @@ nav = [
       "model-checking/parity/hybrid-strategy-improvement.md",
     ] },
     { "Symbolic" = [
+      "model-checking/symbolic/ldd.md",
+      "model-checking/symbolic/ldd-relations.md",
+      "model-checking/symbolic/reachability.md",
       "model-checking/symbolic/saturation.md",
       "model-checking/symbolic/zielonka.md",
       "model-checking/symbolic/partial-solving.md",
       "model-checking/symbolic/copy-nodes.md",
+      "model-checking/symbolic/signature-refinement.md",
+      "model-checking/symbolic/stability-refinement.md",
     ] },
   ] },
   { Benchmarks = [

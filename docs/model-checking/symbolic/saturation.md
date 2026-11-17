@@ -22,7 +22,10 @@ states of a symbolic transition system with the algorithm of:
 
 This page defines the sets that saturation computes (Definitions 1 and 2), states
 why it computes the reachable states (Theorem 1), and describes merc's
-implementation and how it differs from the paper.
+implementation of this *node-wise* saturation and how it differs from the paper.
+merc's `saturation` strategy has since been replaced by the recursive saturation of
+[Symbolic reachability](reachability.md), which also covers breadth-first search,
+chaining and REACH; the node-wise algorithm and its proofs are kept here.
 
 ## Overview
 
@@ -137,7 +140,13 @@ with $\Top > p$ touches position $p$ and the children were saturated. Every $f$ 
 and $A$ stays closed while it grows. The `while` loop additionally closes it under $E_p$.
 Only the values whose continuation changed are fired again, which is the paper's
 *pipelining*. The set only grows and is bounded by the reachable states, so the loop
-terminates. The theorem is argued on paper; it is not formalised in Lean.
+terminates. Proved in Lean, together with termination when the reachable set is
+finite, as
+[`SaturateNodewiseCorrect` and `SaturateNodewiseTerminates`](https://github.com/MERCorg/merc-verified/blob/main/MercLib/Algorithms/LDD/Reachability.lean).
+The Lean model keeps the node in progress as an LDD and adds a fired pair
+$(j, f)$ by the union with the node $j \mapsto f$, which is the update of $A(j)$
+above; `FireTop` is modelled by the relational successors of the event below
+$\Top(e)$, saturated at $p + 1$.
 
 **Worked example.** Let $K = 2$, and start from $\{(0,0)\}$.
 Event $a$ has $\Top = \Bot = 1$ and moves position 1 from 0 to 1. Event $b$ has

@@ -38,3 +38,32 @@ industrial model took hours for individual rounds, with the operation counts of
 those rounds only a few times those of the fast ones. With the default
 `manager-index` backend the same rounds took minutes, with identical state
 counts. That model needed a few hundred million live nodes at its peak.
+
+## Group order
+
+The same `used` groups applied in five orders: by first summand, by top from deep
+to high (the order chaining uses), by top from high to deep, by bottom from high
+to deep, and that last order reversed. Release `merc-lps explore --cached`, one
+worker, reachability seconds, 16 GiB cgroup, single runs. All runs found the same
+state counts.
+
+Chaining:
+
+| model | first summand | top, deep first | top, high first | bottom, high first | reversed |
+|---|---:|---:|---:|---:|---:|
+| Aravind BLRU | 20.0 | 18.5 | 23.5 | 23.2 | 20.3 |
+| Lamport 3-bit | 142.0 | 142.6 | 206.2 | 150.7 | 143.1 |
+| Dijkstra | 1.64 | 1.84 | 2.01 | 2.18 | 1.62 |
+| 1394 | 2.54 | 2.51 | 2.56 | 2.54 | 2.52 |
+
+Firing the deep groups first is the best order or within noise of it; firing the
+high groups first is clearly the worst. For saturation only the order within one
+level can differ. Median of three runs, wall seconds:
+
+| model | first summand | bottom, high first | reversed |
+|---|---:|---:|---:|
+| Aravind BLRU | 4.5 | 5.7 | 5.4 |
+| Dijkstra | 1.0 | 1.0 | 1.0 |
+
+On a large industrial model with chaining, bottom-first reached 38,479 states
+after 40 rounds against 9,807 in summand order; top-first was not measured there.
